@@ -38,19 +38,17 @@ Check (btsub (nd 3 _)
   (btsub (nd 2 _) btnil btnil)).
 
 
-Inductive height {X : Type} : @bt X -> nat -> Prop :=
-| heightnil : height btnil 0
-| heightsub : forall k d l lh r rh h,
-  height l lh ->
-  height r rh ->
-  h = S (max lh rh) ->
-  height (btsub (nd k d) l r) h
+Fixpoint height {X : Type} (t : @bt X) : nat :=
+  match t with
+    | btnil => 0
+    | btsub _ l r => S (max (height l) (height r))
+  end
 .
 
-Example height_0 : @height nat btnil 0.
-Proof. constructor. Qed.
-Example height_1 : @height nat (btsub (nd 3 0) btnil btnil) 1.
-Proof. econstructor; constructor. Qed.
+Example height_0 : @height nat btnil = 0.
+Proof. reflexivity.
+Example height_1 : @height nat (btsub (nd 3 0) btnil btnil) = 1.
+Proof. reflexivity.
 
 (* For search trees, [id] can serve as a key (used for ordering) *)
 Definition key {X : Type} (n : @node X) : nat :=
@@ -62,16 +60,26 @@ Definition key {X : Type} (n : @node X) : nat :=
 Fixpoint minkey {X : Type} (t : @bt X) : nat :=
   match t with
     | btnil => 0
-    | btsub (nd k _) l r => (min k
-      (min (minkey l) (minkey r)))
+    | btsub (nd k _) l r =>
+      match l, r with
+        | btnil, btnil => k
+        | btnil, btsub _ _ _ => min k (minkey r)
+        | btsub _ _ _, btnil => min k (minkey l)
+        | _, _ => min k (min (minkey l) (minkey r))
+      end
   end
 .
 
 Fixpoint maxkey {X : Type} (t : @bt X) : nat :=
   match t with
     | btnil => 0
-    | btsub (nd k _) l r => (max k
-      (max (maxkey l) (maxkey r)))
+    | btsub (nd k _) l r =>
+      match l, r with
+        | btnil, btnil => k
+        | btnil, btsub _ _ _ => max k (maxkey r)
+        | btsub _ _ _, btnil => max k (maxkey l)
+        | _, _ => max k (max (maxkey l) (maxkey r))
+      end
   end
 .
 
@@ -98,19 +106,15 @@ Inductive bst {X : Type} : @bt X -> Prop :=
 .
 
 
-Inductive hbal : nat -> nat -> Prop :=
-| hbaleq : forall h, hbal h h
-| hballh : forall h, hbal (S h) h
-| hbalrh : forall h, hbal h (S h)
+Definition hbal (h1 h2 : nat) : Prop :=
+  h1 = h2 \/ ((S h1) = h2 \/ h1 = (S h2))
 .
 
 (* AVL tree - a Binary Search Tree s.t. height diff of every subtree <= 1 *)
 Inductive avlt {X : Type} : @bt X -> Prop :=
 | avltnil : avlt btnil
-| avltsub : forall k d l lh r rh,
-  height l lh ->
-  height r rh ->
-  hbal lh rh ->
+| avltsub : forall k d l r,
+  hbal (height l) (height r) ->
   avlt l ->
   avlt r ->
   bst (btsub (nd k d) l r) ->
@@ -122,10 +126,8 @@ Inductive avlt {X : Type} : @bt X -> Prop :=
 
 Inductive bal {X : Type} : @bt X -> Prop :=
 | balnil : bal btnil
-| balsub : forall k d l lh r rh,
-  height l lh ->
-  height r rh ->
-  hbal lh rh ->
+| balsub : forall k d l r,
+  hbal (height l) (height r) ->
   bal l ->
   bal r ->
   bal (btsub (nd k d) l r)
