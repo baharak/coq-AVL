@@ -41,14 +41,48 @@ Check (btsub (nd 3 _)
 Fixpoint height {X : Type} (t : @bt X) : nat :=
   match t with
     | btnil => 0
-    | btsub _ l r => S (max (height l) (height r))
+    | btsub _ l r =>
+      match l, r with
+        | btnil, btnil => 0
+        | btnil, btsub _ _ _ => S (height r)
+        | btsub _ _ _, btnil => S (height l)
+        | _, _ => S (max (height l) (height r))
+      end
   end
 .
 
-Example height_0 : @height nat btnil = 0.
+Example test_height_0_empty : @height nat btnil = 0.
 Proof. reflexivity.
-Example height_1 : @height nat (btsub (nd 3 0) btnil btnil) = 1.
+Qed.
+Example test_height_0_single : @height nat (btsub (nd 3 0) btnil btnil) = 0.
 Proof. reflexivity.
+Qed.
+Example test_height_1_bal : @height nat
+  (btsub (nd 3 0)
+    (btsub (nd 1 0) btnil btnil)
+    (btsub (nd 4 0) btnil btnil)
+  ) = 1.
+Proof. reflexivity.
+Qed.
+Example test_height_1_hil : @height nat
+  (btsub (nd 3 0) (btsub (nd 1 0) btnil btnil) btnil) = 1.
+Proof. reflexivity.
+Qed.
+Example test_height_1_hir : @height nat
+  (btsub (nd 3 0) btnil (btsub (nd 4 0) btnil btnil)) = 1.
+Proof. reflexivity.
+Qed.
+
+Example test_height_2lr : @height nat
+  (btsub (nd 5 0)
+    (btsub (nd 3 0)
+      btnil
+      (btsub (nd 4 0) btnil btnil))
+    (btsub (nd 6 0) btnil btnil)
+  ) = 2.
+Proof. reflexivity.
+Qed.
+
 
 (* For search trees, [id] can serve as a key (used for ordering) *)
 Definition key {X : Type} (n : @node X) : nat :=
@@ -85,6 +119,8 @@ Fixpoint maxkey {X : Type} (t : @bt X) : nat :=
 
 Inductive bst {X : Type} : @bt X -> Prop :=
 | bstnil : bst btnil
+| bstleaf : forall k d,
+  bst (btsub (nd k d) btnil btnil)
 | bstbal : forall k d l lk ld ll lr r rk rd rl rr,
   l = (btsub (nd lk ld) ll lr) ->
   (maxkey l) < k ->
@@ -100,15 +136,35 @@ Inductive bst {X : Type} : @bt X -> Prop :=
   bst (btsub (nd k d) l btnil)
 | bsthir : forall k d r rk rd rl rr,
   r = (btsub (nd rk rd) rl rr) ->
-  (maxkey r) < k ->
+  (minkey r) > k ->
   bst r ->
   bst (btsub (nd k d) btnil r)
 .
 
+Example test_bst_0 : bst (
+  (btsub (nd 5 0)
+    (btsub (nd 3 0)
+      btnil
+      (btsub (nd 4 0) btnil btnil))
+    (btsub (nd 6 0) btnil btnil))).
+Proof.
+  eapply bstbal;
+    try (simpl; omega);
+      try constructor.
+  eapply bsthir;
+    constructor. (* constructor also solves inequality - no need for omega *)
+Qed.
 
 Definition hbal (h1 h2 : nat) : Prop :=
   h1 = h2 \/ ((S h1) = h2 \/ h1 = (S h2))
 .
+
+Example test_hbal_bal : hbal 2 2. left. reflexivity. Qed.
+Example test_hbal_hil : hbal 1 0. right. right. reflexivity. Qed.
+Example test_hbal_hir : hbal 3 4. right. left. reflexivity. Qed.
+Example test_hbal_none_hil : ~ hbal 4 2. unfold hbal. omega. Qed.
+Example test_hbal_none_hir : ~ hbal 2 4. unfold hbal. omega. Qed.
+
 
 (* AVL tree - a Binary Search Tree s.t. height diff of every subtree <= 1 *)
 Inductive avlt {X : Type} : @bt X -> Prop :=
