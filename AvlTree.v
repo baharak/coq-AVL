@@ -50,7 +50,6 @@ Fixpoint height {X : Type} (t : @bt X) : nat :=
       end
   end
 .
-
 Example test_height_0_empty : @height nat btnil = 0.
 Proof. reflexivity.
 Qed.
@@ -72,7 +71,6 @@ Example test_height_1_hir : @height nat
   (btsub (nd 3 0) btnil (btsub (nd 4 0) btnil btnil)) = 1.
 Proof. reflexivity.
 Qed.
-
 Example test_height_2lr : @height nat
   (btsub (nd 5 0)
     (btsub (nd 3 0)
@@ -82,6 +80,161 @@ Example test_height_2lr : @height nat
   ) = 2.
 Proof. reflexivity.
 Qed.
+
+Lemma height_S_max {X : Type} : forall n l ln ll lr r rn rl rr,
+  l = (btsub ln ll lr) ->
+  r = (btsub rn rl rr) ->
+  S (max (height l) (height r)) = height (@btsub X n l r).
+Proof.
+  intros.
+  destruct l;
+    destruct r;
+      try reflexivity.
+  inversion H.
+  inversion H0.
+Qed.
+
+
+(* Size of a binary tree = the number of nodes in it *)
+Fixpoint size {X : Type} (t : @bt X) : nat :=
+  match t with
+    | btnil => 0
+    | btsub _ l r =>
+      S ((size l) + (size r))
+  end
+.
+Example test_size_0_empty : @size nat btnil = 0.
+Proof. reflexivity.
+Qed.
+Example test_size_1_single : @size nat (btsub (nd 3 0) btnil btnil) = 1.
+Proof. reflexivity.
+Qed.
+Example test_size_2 : @size nat
+  (btsub (nd 5 0)
+    btnil
+    (btsub (nd 3 0) btnil btnil)
+  ) = 2.
+Proof. reflexivity.
+Qed.
+Example test_size_4 : @size nat
+  (btsub (nd 5 0)
+    (btsub (nd 3 0)
+      btnil
+      (btsub (nd 4 0) btnil btnil))
+    (btsub (nd 6 0) btnil btnil)
+  ) = 4.
+Proof. reflexivity.
+Qed.
+
+Lemma le_relax_l : forall ls' ls l r,
+  ls' <= ls ->
+  ls + l <= r ->
+  ls' + l <= r.
+Proof. intros. omega.
+Qed.
+
+Lemma le_relax_r : forall l r rs rs',
+  l <= r + rs ->
+  rs <= rs' ->
+  l <= r + rs'.
+Proof. intros. omega.
+Qed.
+
+Lemma le_either : forall a b, {a <= b} + {b <= a}.
+Proof.
+    intros. generalize dependent b.
+    induction a;
+      destruct b;
+        try (left; omega);
+          try (right; omega).
+      remember (IHa b) as IHa'. inversion IHa'.
+      left. omega.
+      right. omega.
+Qed.
+
+Fixpoint twopow (exp : nat) :=
+  match exp with
+    | 0 => 1
+    | S exp' => (twopow exp') + (twopow exp')
+  end
+.
+Example twopow_0 : twopow 0 = 1. Proof. reflexivity. Qed.
+Example twopow_1 : twopow 1 = 2. Proof. reflexivity. Qed.
+Example twopow_10 : twopow 10 = 1024. Proof. reflexivity. Qed.
+
+Lemma twopow_nondec : forall a b,
+  a <= b -> twopow a <= twopow b.
+Proof.
+  intros. induction H. reflexivity.
+  simpl. omega.
+Qed.
+
+(* The number of nodes in a binary tree is less than 2^(h + 1) *)
+Theorem bound_size {X : Type} : forall (t : @bt X),
+  S (size t) <= twopow (S (height t)).
+Proof.
+  intros. induction t.
+  Case "btnil".
+    unfold size. unfold height. subst.
+    unfold twopow. omega.
+
+  Case "btsub".
+    assert (forall a b, a <= twopow b -> S a <= twopow (S b)) as Hah.
+      assert (forall e, 1 <= twopow e). induction e. reflexivity. simpl. omega.
+    intros. simpl. assert (1 <= twopow b) by apply H. omega.
+
+    destruct t1;
+      destruct t2.
+    simpl. omega.
+
+    SCase "no left".
+    remember (btsub n0 t2_1 t2_2) as r.
+    replace (height (btsub n btnil r)) with (S (height r)).
+    replace (size (btsub n btnil r)) with (S (size r)).
+    apply Hah. apply IHt2.
+    reflexivity.
+    destruct r. inversion Heqr. reflexivity.
+
+    SCase "no right".
+    remember (btsub n0 t1_1 t1_2) as l.
+    replace (height (btsub n l btnil)) with (S (height l)).
+    replace (size (btsub n l btnil)) with (S (size l)).
+    apply Hah. apply IHt1.
+    simpl. omega.
+    destruct l. inversion Heql. reflexivity.
+
+    SCase "both".
+    remember (btsub n0 t1_1 t1_2) as l.
+    remember (btsub n1 t2_1 t2_2) as r.
+    replace (size (btsub n l r)) with (S ((size l) + (size r)));
+      try reflexivity.
+    replace (height (btsub n l r)) with (S (max (height l) (height r)));
+      try (eapply height_S_max; eassumption).
+    assert (forall e, twopow (S e) = twopow e + twopow e) as Hp by reflexivity.
+
+    destruct (le_either (height l) (height r)) as [Hhi | Hhi];
+      rewrite plus_n_Sm; rewrite plus_comm;
+        rewrite plus_n_Sm;
+          rewrite plus_comm.
+
+    SSCase "higher right".
+      assert ((height l) <= (height r)) as Hmax by apply Hhi.
+      apply le_n_S in Hhi. apply twopow_nondec in Hhi.
+      rewrite max_r;
+        try assumption.
+      assert (S (size l) <= twopow (S (height r))) as H.
+      eapply le_trans; eassumption.
+      (* apply le_trans with (p := twopow (S (height r))) in IHt1. *)
+      rewrite Hp. eapply le_relax_l. eassumption. omega.
+
+    SSCase "higher left".
+      assert ((height r) <= (height l)) as Hmax by apply Hhi.
+      apply le_n_S in Hhi. apply twopow_nondec in Hhi.
+      rewrite max_l;
+        try assumption.
+      rewrite Hp. omega.            (* a more automated way *)
+Qed.
+
 
 
 (* For search trees, [id] can serve as a key (used for ordering) *)
