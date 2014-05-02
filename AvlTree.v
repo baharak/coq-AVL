@@ -451,11 +451,134 @@ Inductive btrebal {X : Type} : @bt X -> @bt X -> Prop :=
   btrebal (btsub n l r) t'
 .
 
-
 (* I decided to separete the rebalancing operation from the insertion beacuse:
    1) there would be twice as many constructors because we would repeat
    the same rebalancing logic for both the case when I insert left and right
    2) to avoid repeating it when I implement AVL deletion *)
+
+
+Lemma maxkey_r {X : Type} : forall k' k d l r,
+  r <> @btnil X ->
+  maxkey (btsub (nd k d) l r) < k' (* (btsub (nd rk rd) rl rr)) < k' *)
+  -> maxkey r < k'.
+Proof.
+Admitted.
+
+Lemma btrotr_bst {X : Type} : forall t t',
+  @bst X t ->
+  btrotr t t' ->
+  bst t'.
+Proof.
+  intros g p' Hs Hr.
+  destruct p';
+    inversion Hr; subst; clear Hr.
+  rename p'1 into l, n into pn.
+  destruct pn as [pk pd].
+  destruct gn as [gk gd].
+  set (btsub (nd pk pd) l r) as p in *.
+  set (btsub (nd gk gd) r u) as g' in *.
+  set (btsub (nd pk pd) l g') as p' in *.
+  assert (bst p /\ bst u) as [Hsp Hsu]
+    by (split; inversion Hs; try constructor; assumption).
+  assert (maxkey p < gk) as Hkp by (inversion Hs; assumption).
+  assert (u <> btnil -> gk < minkey u) as Hku
+    by (intro; destruct u; inversion Hs; intuition).
+  assert (bst l) as Hsl by (inversion Hsp; try constructor; assumption).
+
+  destruct r as [| [rk rd] rl rr].
+  Case "r = btnil".
+    assert (bst g') as Hsg'.
+      destruct u as [| [uk ud] ul ur]. apply bstleaf.
+      eapply bsthir; subst g'; auto. apply Hku. intro H. inversion H.
+    destruct l as [| ln ll lr].
+    SCase "l = btnil".
+      assert (pk < minkey g'). admit.
+      eapply bsthir; subst g'; auto.
+    SCase "l = btsub".
+      set (btsub ln ll lr) as l.
+      assert (maxkey l < pk) by (inversion Hsp; intuition).
+      destruct ln as [lk ld].
+      assert (pk < minkey g'). admit.
+      eapply bstbal; subst g'; auto.
+  Case "r = btsub".
+  set (btsub (nd rk rd) rl rr) as r.
+    assert (bst r) as Hsr by (inversion Hsp; assumption).
+    assert (maxkey r < gk). admit.
+    assert (bst g') as Hsg'.
+      destruct u as [| [uk ud] ul ur]. eapply bsthil; auto.
+      eapply bstbal; subst g'; auto. apply Hku. intro H'. inversion H'.
+    destruct l as [| [lk ld] ll lr].
+    SCase "l = btnil".
+      assert (pk < minkey g'). admit.
+      eapply bsthir; subst g'; auto.
+    SCase "l = btsub".
+    set (btsub (nd lk ld) ll lr) as l.
+      assert (maxkey l < pk) by (inversion Hsp; intuition).
+      assert (pk < minkey g'). admit.
+      eapply bstbal; subst g'; auto.
+Qed.
+
+(*   (* A more messy way with almost duplicate goal = 2x work *) *)
+(* Proof. *)
+(*   intros g p' Hs Hr. *)
+(*   induction Hs; *)
+(*     try solve by inversion; *)
+(*       rename k into gk, d into gd; *)
+(*   rename l into p, lk into pk, ld into pd; *)
+(*     try rename r into u, rk into uk, rd into ud; *)
+(*       try rename rl into ul, rr into ur; *)
+(*         rename ll into l, lr into r. *)
+(*   (* Case: *) *)
+(*   (*     g            p' *) *)
+(*   (*    / \          / \ *) *)
+(*   (*   p   u  -->   l   g' *) *)
+(*   (*  / \              / \ *) *)
+(*   (* l   r            r   u *) *)
+(*   rename Hs1 into Hsp, Hs2 into Hsu. *)
+(*   inversion Hr; subst; clear Hr. *)
+(*   inversion H5; subst; clear H5. *)
+(*   set (btsub (nd pk pd) l r) as p in *. *)
+(*   set (btsub (nd uk ud) ul ur) as u in *. *)
+(*   set (btsub (nd gk gd) r u) as g' in *. *)
+(*   set (btsub (nd pk pd) l g') as p' in *. *)
+
+  (* destruct r as [| rn rl rr]. *)
+  (* assert (bst g') as Hsg'. eapply bsthir; subst u; auto. *)
+
+  (*   destruct l as [| ln ll lr]. *)
+  (*   assert (pk < minkey g'). admit. *)
+  (*   eapply bsthir; subst g'; auto. *)
+
+  (*   set (btsub ln ll lr) as l. *)
+  (*   assert (maxkey l < pk) by (inversion Hsp; intuition). *)
+  (*   destruct ln as [lk ld]. *)
+  (*   assert (bst l) by (inversion Hsp; assumption). *)
+  (*   assert (pk < minkey g'). admit. *)
+  (*   eapply bstbal; subst g'; auto. *)
+
+  (* set (btsub rn rl rr) as r. *)
+  (*   assert (bst r) as Hsr by (inversion Hsp; assumption). *)
+  (*   assert (maxkey r < gk). admit. *)
+  (*   destruct rn as [rk rd]. *)
+  (*   assert (bst g') as Hsg' by (eapply bstbal; subst r u; auto). *)
+  (*   destruct l as [| ln ll lr]. *)
+  (*     assert (pk < minkey g'). admit. *)
+  (*     eapply bsthir; subst g'; auto. *)
+  (*   set (btsub ln ll lr) as l. *)
+  (*     assert (maxkey l < pk) by (inversion Hsp; intuition). *)
+  (*     assert (pk < minkey g'). admit. *)
+  (*     assert (bst l) by (inversion Hsp; assumption). *)
+  (*     destruct ln as [lk ld]. *)
+  (*     eapply bstbal; subst g'; auto. *)
+
+  (* (* Case: *) *)
+  (* (*     g            p' *) *)
+  (* (*    /            / \ *) *)
+  (* (*   p      -->   l   g' *) *)
+  (* (*  / \              /   *) *)
+  (* (* l   r            r     *) *)
+  (* apply (bstbal lk ld ll lr). *)
+(* Qed. *)
 
 Inductive avlins {X : Type} : @bt X -> @node X -> @bt X -> Prop :=
 | avlinsnil : forall k' d',
@@ -513,8 +636,8 @@ Lemma avlins_bst_l {X : Type} : forall k d l r k' d' l',
   k' < k ->
   avlins l (nd k' d') l' ->
   @bst X (btsub (nd k d) l' r).
-Proof.
-Admitted.
+Proof. admit.
+Qed.
 
 Lemma avlins_bst_r {X : Type} : forall k d l r k' d' r',
   @bst X (btsub (nd k d) l r) ->
@@ -689,3 +812,4 @@ admit. admit. admit.
   (*   intros. *)
 
 (* end *)
+Admitted.
