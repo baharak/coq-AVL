@@ -314,6 +314,180 @@ Proof.
     constructor. (* constructor also solves inequality - no need for omega *)
 Qed.
 
+Inductive bstins {X : Type} : @bt X -> @node X -> @bt X -> Prop :=
+| bstinsnil : forall k' d',
+  bstins btnil (nd k' d') (btsub (nd k' d') btnil btnil)
+| bstinsleft : forall k' d' k d l r l',
+  k' < k ->
+  bstins l (nd k' d') l' ->
+  bstins (btsub (nd k d) l r) (nd k' d') (btsub (nd k d) l' r)
+| bstinsright : forall k' d' k d l r r',
+  k < k' ->
+  bstins r (nd k' d') r' ->
+  bstins (btsub (nd k d) l r) (nd k' d') (btsub (nd k d) l r')
+.
+
+Example test_bstins_left : bstins
+(btsub (nd 5 0) btnil btnil)
+(nd 3 0)
+(btsub (nd 5 0) (btsub (nd 3 0) btnil btnil) btnil).
+Proof.
+  intros. apply bstinsleft. omega.
+  apply bstinsnil.
+Qed.
+
+Example test_bstins_right : bstins
+(btsub (nd 1 0) btnil btnil)
+(nd 4 0)
+(btsub (nd 1 0) btnil (btsub (nd 4 0) btnil btnil)).
+Proof.
+  intros. apply bstinsright. omega.
+  apply bstinsnil.
+Qed.
+
+Lemma bstins_sub {X : Type} : forall t n t',
+  @bstins X t n t' ->
+  t' <> btnil.
+Proof.
+  intros.
+  inversion H; subst;
+    intro;
+      try solve by inversion.
+Qed.
+
+Lemma bstins_maxkey {X : Type} : forall t k' d' t',
+  t <> @btnil X ->
+  @bstins X t (nd k' d') t' ->
+  maxkey t' = max (maxkey t) k'.
+Proof.
+  intros. rename H0 into Hi.
+  generalize dependent t'.
+  generalize dependent k'.
+  generalize dependent d'.
+  induction t; intros. intuition.
+  inversion Hi; subst.
+  destruct t1 as [| ln ll lr];
+    destruct t2 as [| rn rl rr].
+  admit. admit. admit.
+  set (btsub ln ll lr) as l in *.
+  set (btsub rn rl rr) as r in *.
+  rename H7 into Hli.
+  destruct l'. inversion Hli.
+  apply IHt1 in Hli.
+  set (btsub n l'1 l'2) as l' in *.
+  replace (maxkey (btsub (nd k d) l' r)) with
+    (S (max (maxkey l') (maxkey r))).
+  replace (maxkey (btsub (nd k d) l r)) with
+    (S (max (maxkey l) (maxkey r))).
+  remember (le_either (maxkey l) k') as m. destruct m.
+  rewrite max_r in Hli; try assumption.
+  clear Heqm.
+  rewrite <- Hli.
+  destruct l0 as [| k'pred]. rewrite Hli. admit.
+  rewrite Hli.
+  rewrite <- succ_max_distr.
+  symmetry. rewrite max_comm. rewrite max_assoc.
+  apply max_l in l0. rewrite l0.
+
+                     (* STUCK *)
+Admitted.
+
+(* Lemma bstins_maxkey' {X : Type} : forall t k d l r k' d' t', *)
+(*   t = btsub (nd k d) l r -> *)
+(*   @bstins X t (nd k' d') t' -> *)
+(*   k' < k -> *)
+(*   maxkey t' = maxkey t. *)
+(* Proof. *)
+(*   intros. *)
+(*   generalize dependent k.  *)
+(*   generalize dependent d.  *)
+(*   generalize dependent l. *)
+(*   generalize dependent r. *)
+(*   induction H0; *)
+(*     intros. *)
+(*   inversion H. *)
+(*   inversion H1; subst; clear H1. *)
+
+
+(*   inversion H0; subst. reflexivity.  *)
+(*   simpl. *)
+(*   (* intros. *) *)
+(*   (* remember (btsub (nd k d) l r) as t. *) *)
+(*   (* generalize dependent k'. *) *)
+(*   (* generalize dependent d'. *) *)
+(*   (* generalize dependent l'. *) *)
+(*   (* generalize dependent H. *) *)
+(*   (* generalize dependent l. *) *)
+(*   (* generalize dependent l. *) *)
+(*   intros t. *)
+(*   induction t; intros. inversion H. *)
+(*   inversion H; subst. *)
+(*   inversion H0; subst. auto. *)
+(*   eapply IHt1 in H7. *)
+(*   eapply IHt1; eauto.  *)
+(*   eapply IHt1 in H0. eassumption. e *)
+(*   eapply IHt'1 in H0. *)
+(* admit. *)
+(*   destruct l' as [| ln ll lr]. inversion H8. *)
+(*   apply IHt1 with (l := t1) in H8. *)
+
+(*   (* STUCK *) *)
+(* Admitted. *)
+
+Lemma bstins_minkey {X : Type} : forall t k' d' t',
+  t <> @btnil X ->
+  @bstins X t (nd k' d') t' ->
+  minkey t' = min (minkey t) k'.
+Proof.
+Admitted.
+
+Theorem bstins_bst {X : Type} : forall t n t',
+  @bst X t ->
+  bstins t n t' ->
+  bst t'.
+Proof with auto.
+  intros t n t' Hs Hi.
+  generalize dependent Hs.
+  induction Hi; intros;
+    try apply bstleaf;
+      assert (bst l /\ bst r) as [Hsl Hsr]
+        by (split; inversion Hs; try constructor; assumption).
+
+  assert (bst l') as Hsl' by auto.
+  destruct l' as [| [l'k l'd] l'l l'r]. inversion Hi.
+  set (btsub (nd l'k l'd) l'l l'r) as l' in *.
+  assert (maxkey l' < k) as Hkl'.
+    destruct l as [| [lk ld] ll lr].
+    inversion Hi; subst l'; subst. assumption.
+    set (btsub (nd lk ld) ll lr) as l in *.
+    assert (maxkey l < k) by (inversion Hs; assumption).
+    apply bstins_maxkey in Hi; try (intro Hcontra; inversion Hcontra).
+    rewrite Hi. destruct (le_either (maxkey l) k').
+    rewrite max_r; assumption.
+    rewrite max_l; assumption.
+  destruct r as [| [rk rd] rl rr].
+    eapply bsthil; subst l'; auto.
+    set (btsub (nd rk rd) rl rr) as r.
+    assert (k < minkey r) by (inversion Hs; assumption).
+    eapply bstbal; subst l' r; auto.
+
+  assert (bst r') by auto.
+  destruct r' as [| r'n r'l r'r]. inversion Hi.
+  assert (k < minkey (btsub r'n r'l r'r)).
+    destruct r. inversion Hi...
+    assert (k < minkey (btsub n r1 r2)) by (inversion Hs; assumption).
+    apply bstins_minkey in Hi; try (intro Hcontra; inversion Hcontra).
+    rewrite Hi.
+    destruct (le_either (minkey (btsub n r1 r2)) k').
+      rewrite min_l...
+      rewrite min_r...
+  destruct r'n.
+  destruct l.
+    eapply bsthir...
+    inversion Hs; eapply bstbal; eauto.
+Qed.
+
+
 (* It is easier to work with successors of [height] because the case when
    [height t = 0] is ambiguous - t is either [btnil] or [btsub _ btnil btnil].*)
 
