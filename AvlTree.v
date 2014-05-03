@@ -35,7 +35,7 @@ Inductive bt {X : Type} : Type :=
 | btnil : bt
 | btsub : @node X -> bt -> bt -> bt
 .
-Hint Constructors node.
+Hint Constructors bt.
 
 Check (btnil).
 Check (btsub (nd 2 _) btnil btnil).
@@ -280,25 +280,22 @@ Inductive bst {X : Type} : @bt X -> Prop :=
 | bstnil : bst btnil
 | bstleaf : forall k d,
   bst (btsub (nd k d) btnil btnil)
-| bstbal : forall k d l lk ld ll lr r rk rd rl rr,
-  l = (btsub (nd lk ld) ll lr) ->
-  (maxkey l) < k ->
-  bst l ->
-  r = (btsub (nd rk rd) rl rr) ->
-  k < (minkey r) ->
-  bst r ->
-  bst (btsub (nd k d) l r)
-| bsthil : forall k d l lk ld ll lr,
-  l = (btsub (nd lk ld) ll lr) ->
-  (maxkey l) < k ->
-  bst l ->
-  bst (btsub (nd k d) l btnil)
-| bsthir : forall k d r rk rd rl rr,
-  r = (btsub (nd rk rd) rl rr) ->
-  k < (minkey r) ->
-  bst r ->
-  bst (btsub (nd k d) btnil r)
+| bstbal : forall k d lk ld ll lr rk rd rl rr,
+  (maxkey (btsub (nd lk ld) ll lr)) < k ->
+  bst (btsub (nd lk ld) ll lr) ->
+  k < (minkey (btsub (nd rk rd) rl rr)) ->
+  bst (btsub (nd rk rd) rl rr) ->
+  bst (btsub (nd k d) (btsub (nd lk ld) ll lr) (btsub (nd rk rd) rl rr))
+| bsthil : forall k d lk ld ll lr,
+  (maxkey (btsub (nd lk ld) ll lr)) < k ->
+  bst (btsub (nd lk ld) ll lr) ->
+  bst (btsub (nd k d) (btsub (nd lk ld) ll lr) btnil)
+| bsthir : forall k d rk rd rl rr,
+  k < (minkey (btsub (nd rk rd) rl rr)) ->
+  bst (btsub (nd rk rd) rl rr) ->
+  bst (btsub (nd k d) btnil (btsub (nd rk rd) rl rr))
 .
+Hint Constructors bst.
 
 Example test_bst_0 : bst (
   (btsub (nd 5 0)
@@ -306,12 +303,7 @@ Example test_bst_0 : bst (
       btnil
       (btsub (nd 4 0) btnil btnil))
     (btsub (nd 6 0) btnil btnil))).
-Proof.
-  eapply bstbal;
-    try (simpl; omega);
-      try constructor.
-  eapply bsthir;
-    constructor. (* constructor also solves inequality - no need for omega *)
+Proof. repeat constructor.
 Qed.
 
 Inductive bstins {X : Type} : @bt X -> @node X -> @bt X -> Prop :=
@@ -636,8 +628,8 @@ Lemma bst_maxkey_nd {X : Type} : forall k d l,
 Proof.
   intros.
   induction l as [| [lk ld]]. reflexivity.
-  inversion H; subst. inversion H7.
-  clear H3 lk0 ld0 ll lr.
+  inversion H; subst.
+  (* clear H3 lk0 ld0 ll lr. *)
   (* STUCK *)
 Admitted.
 
@@ -700,13 +692,12 @@ Proof.
     assert (pk < minkey g')
       by (subst p g'; rewrite bst_maxkey_nd in Hkp; try rewrite bst_minkey_nd;
         assumption).
-    destruct l as [| ln ll lr].
+    destruct l as [| [lk ld] ll lr].
     SCase "l = btnil".
       eapply bsthir; subst g'; auto.
     SCase "l = btsub".
-      set (btsub ln ll lr) as l.
+      set (btsub (nd lk ld) ll lr) as l.
       assert (maxkey l < pk) by (inversion Hsp; assumption).
-      destruct ln as [lk ld].
       eapply bstbal; subst g'; auto.
   Case "r = btsub".
   set (btsub (nd rk rd) rl rr) as r.
@@ -906,7 +897,7 @@ Theorem avlins_avlt {X : Type} : forall t n t'',
   @avlt X t''.
 Proof.
   assert (forall X t, @avlt X t -> bst t) as Has.
-    intros. inversion H; auto. constructor.
+    intros. inversion H; auto.
 
   (* intros t n t'' H Hi. *)
   (* generalize dependent Hi. *)
@@ -953,10 +944,10 @@ Proof.
  *)
 
   admit.
-  inversion H0; subst.
+(*   inversion H0; subst. *)
 
-admit. admit. admit.
-  admit. admit.
+(* admit. admit. admit. *)
+(*   admit. admit. *)
   (* induction H; *)
   (*   intros. *)
 
