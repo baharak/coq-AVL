@@ -590,31 +590,31 @@ Inductive btrotr {X : Type} : @bt X -> @bt X -> Prop :=
 .
 
 Inductive btrebal {X : Type} : @bt X -> @bt X -> Prop :=
-| btrebalbal : forall t,        (*  *)
-  ndbal t ->
-  btrebal t t
-| btreballl : forall n l r t',  (*                     g (2)         p (-1|0) *)
-  btleanl 2 (btsub n l r) ->    (*                    /             / \       *)
+| btrebalbal : forall t,        (*   case balanced:    p (-1|0|1) *)
+  ndbal t ->                    (*                    / \         *)
+  btrebal t t                   (*                   l   r        *)
+| btreballl : forall n l r t', (*    case LL:          g (2)         p (-1|0) *)
+  btleanl 2 (btsub n l r) -> (*                       /             / \       *)
   btleanl 1 l \/ btleanl 0 l -> (*                   p (1|0)  -->  l   g      *)
-  btrotr (btsub n l r) t' ->    (*                  /                         *)
-  btrebal (btsub n l r) t'      (*                 l                          *)
-| btrebalrr : forall n l r t',  (*                     g (-2)        p (1|0)  *)
-  btleanr 2 (btsub n l r) ->    (*                      \           / \       *)
+  btrotr (btsub n l r) t' -> (*                     /                         *)
+  btrebal (btsub n l r) t' (*                       l                         *)
+| btrebalrr : forall n l r t', (*    case RR:          g (-2)        p (1|0)  *)
+  btleanr 2 (btsub n l r) -> (*                         \           / \       *)
   btleanr 1 r \/ btleanr 0 r -> (*                (-1|0) p    -->  g   r      *)
-  btrotr (btsub n l r) t' ->    (*                        \                   *)
-  btrebal (btsub n l r) t'      (*                         r                  *)
-| btreballr : forall n l r l' t', (*   g (2)           g (2)         r (-1|0) *)
-  btleanl 2 (btsub n l r) -> (*       /               /             / \       *)
-  btleanr 1 l ->  (*                 p (-1)   -->    r (1|0)  -->  p   g      *)
-  btrotl l l' -> (*                   \             /                         *)
-  btrotr (btsub n l' r) t' -> (*       r           p                          *)
-  btrebal (btsub n l r) t'
-| btrebalrl : forall n l r r' t', (*   g (-2)          g (-2)        l (1|0)  *)
-  btleanl 2 (btsub n l r) -> (*         \               \           / \       *)
-  btleanl 1 r ->  (*                 (1) p    --> (-1|0) l    -->  g   p      *)
-  btrotr r r' -> (*                     /                 \                   *)
-  btrotr (btsub n l r') t' -> (*       l                   p                  *)
-  btrebal (btsub n l r) t'
+  btrotl (btsub n l r) t' -> (*                           \                   *)
+  btrebal (btsub n l r) t' (*                              r                  *)
+| btreballr : forall n l r l' t', (* case LR: *)
+  btleanl 2 (btsub n l r) -> (*        g (2)           g (2)         r (-1|0) *)
+  btleanr 1 l -> (*                   /               /             / \       *)
+  btrotl l l' -> (*                  p (-1)   -->    r (1|0)  -->  p   g      *)
+  btrotr (btsub n l' r) t' -> (*      \             /                         *)
+  btrebal (btsub n l r) t' (*          r           p                          *)
+| btrebalrl : forall n l r r' t', (* case RL: *)
+  btleanl 2 (btsub n l r) -> (*        g (-2)          g (-2)        l (1|0)  *)
+  btleanl 1 r -> (*                     \               \           / \       *)
+  btrotr r r' -> (*                  (1) p    --> (-1|0) l    -->  g   p      *)
+  btrotl (btsub n l r') t' -> (*        /                 \                   *)
+  btrebal (btsub n l r) t' (*          l                   p                  *)
 .
 
 (* I decided to separete the rebalancing operation from the insertion beacuse:
@@ -663,11 +663,20 @@ Lemma bst_minkey_l {X : Type} : forall k d l r,
 Proof.
 Admitted.
 
+Lemma bst_lr {X : Type} : forall n l r,
+  @bst X (btsub n l r) ->
+  bst l /\ bst r.
+Proof.
+  intros n l r Hs.
+  split; inversion Hs; try constructor; assumption.
+Qed.
+Hint Resolve bst_lr.
+
 Lemma btrotr_bst {X : Type} : forall t t',
   @bst X t ->
   btrotr t t' ->
   bst t'.
-Proof.
+Proof with auto.
   intros g p' Hs Hr.
   destruct p';
     inversion Hr; subst; clear Hr.
@@ -677,8 +686,7 @@ Proof.
   set (btsub (nd pk pd) l r) as p in *.
   set (btsub (nd gk gd) r u) as g' in *.
   set (btsub (nd pk pd) l g') as p' in *.
-  assert (bst p /\ bst u) as [Hsp Hsu]
-    by (split; inversion Hs; try constructor; assumption).
+  assert (bst p /\ bst u) as [Hsp Hsu] by (apply bst_lr in Hs; assumption).
   assert (maxkey p < gk) as Hkp by (inversion Hs; assumption).
   assert (u <> btnil -> gk < minkey u) as Hku
     by (intro; destruct u; inversion Hs; intuition).
@@ -688,36 +696,136 @@ Proof.
   Case "r = btnil".
     assert (bst g') as Hsg'.
       destruct u as [| [uk ud] ul ur]. apply bstleaf.
-      eapply bsthir; subst g'; auto. apply Hku. intro H. inversion H.
+      apply bsthir; auto. apply Hku. intro H. inversion H.
     assert (pk < minkey g')
       by (subst p g'; rewrite bst_maxkey_nd in Hkp; try rewrite bst_minkey_nd;
         assumption).
     destruct l as [| [lk ld] ll lr].
     SCase "l = btnil".
-      eapply bsthir; subst g'; auto.
+      eapply bsthir...
     SCase "l = btsub".
       set (btsub (nd lk ld) ll lr) as l.
       assert (maxkey l < pk) by (inversion Hsp; assumption).
-      eapply bstbal; subst g'; auto.
+      eapply bstbal...
   Case "r = btsub".
   set (btsub (nd rk rd) rl rr) as r.
     assert (bst r) as Hsr by (inversion Hsp; assumption).
     assert (maxkey r < gk) as Hkr
       by (subst p; rewrite bst_maxkey_r in Hkp; auto; intro H'; inversion H').
     assert (bst g') as Hsg'.
-      destruct u as [| [uk ud] ul ur]. eapply bsthil; auto.
-      eapply bstbal; subst g'; auto. apply Hku. intro H'. inversion H'.
+      destruct u as [| [uk ud] ul ur]. apply bsthil...
+      apply bstbal; auto. apply Hku. intro H'. inversion H'.
     assert (pk < minkey g').
       assert (pk < minkey r) as Hkr' by (inversion Hsp; assumption).
-      subst g'. rewrite bst_minkey_l; auto.
-      intro H'. inversion H'.
+      subst g'. rewrite bst_minkey_l...
+      intro H'; inversion H'.
     destruct l as [| [lk ld] ll lr].
     SCase "l = btnil".
-      eapply bsthir; subst g'; auto.
+      eapply bsthir...
     SCase "l = btsub".
-    set (btsub (nd lk ld) ll lr) as l.
+      set (btsub (nd lk ld) ll lr) as l.
       assert (maxkey l < pk) by (inversion Hsp; intuition).
-      eapply bstbal; subst g'; auto.
+      eapply bstbal...
+Qed.
+
+Lemma btrotl_bst {X : Type} : forall t t',
+  @bst X t ->
+  btrotl t t' ->
+  bst t'.
+Proof with auto.
+  (* Analogous to [btrotl_bst], but with more automation. *)
+  intros g p' Hs Hr.
+  destruct p';
+    inversion Hr; subst; clear Hr.
+  rename p'2 into r, n into pn.
+  destruct pn as [pk pd].
+  destruct gn as [gk gd].
+  set (btsub (nd pk pd) l r) as p in *.
+  set (btsub (nd gk gd) u l) as g' in *.
+  set (btsub (nd pk pd) g' r) as p' in *.
+  assert (bst u /\ bst p) as [Hsu Hsp] by eauto using bst_lr.
+  assert (gk < minkey p) as Hkp by (inversion Hs; assumption).
+  assert (u <> btnil -> maxkey u < gk) as Hku
+    by (intro; destruct u; inversion Hs; intuition).
+
+  destruct l as [| [lk ld] ll lr].
+  Case "l = btnil".
+    assert (bst g') as Hsg'.
+      destruct u as [| [uk ud] ul ur]; constructor...
+      apply Hku; intro H'; inversion H'.
+    assert (maxkey g' < pk)
+      by (subst p g'; rewrite bst_minkey_nd in Hkp; try rewrite bst_maxkey_nd;
+        assumption).
+    destruct r as [| [rk rd] rl rr]. apply bsthil...
+    inversion Hsp; apply bstbal...
+  Case "l = btsub".
+    set (btsub (nd lk ld) ll lr) as l.
+    assert (bst l) as Hsl by (inversion Hsp; assumption).
+    assert (gk < minkey l) as Hkl
+      by (subst p; rewrite bst_minkey_l in Hkp; auto; intro H'; inversion H').
+    assert (bst g') as Hsg'.
+      destruct u as [| [uk ud] ul ur]; constructor...
+      apply Hku; intro H'; inversion H'.
+    assert (maxkey g' < pk).
+      inversion Hsp;
+        subst g'; rewrite bst_maxkey_r;
+          try (intro H'; inversion H')...
+    destruct r as [| [rk rd] rl rr]. apply bsthil...
+    inversion Hsp; apply bstbal...
+Qed.
+
+Lemma btrotl_bstmax {X : Type} : forall t t',
+  @btrotl X t t' ->
+  maxkey t = maxkey t'.
+Proof.
+Admitted.
+
+Lemma btrotr_bstmin {X : Type} : forall t t',
+  @btrotr X t t' ->
+  minkey t = minkey t'.
+Proof.
+Admitted.
+
+Theorem btrebal_bst {X : Type} : forall (t t' : @bt X),
+  bst t ->
+  btrebal t t' ->
+  bst t'.
+Proof.
+  intros t t' Hs Hb.
+  inversion Hb; subst; clear Hb;
+    try assumption;             (* trivial case - no rotation *)
+    (* cases with single rotation follow directly from the lemma *)
+      try (apply btrotr_bst in H1; assumption);
+        try (apply btrotl_bst in H1; assumption);
+         (* for the remaining cases, we need the lemma that children are bst *)
+          assert (bst l /\ bst r) as [Hsl Hsr]
+            by (apply bst_lr in Hs; assumption);
+            destruct n as [k d].
+  Case "LR".
+    destruct l' as [| [l'k l'd] l'l l'r]. inversion H1.
+    set (btsub (nd l'k l'd) l'l l'r) as l' in *.
+    assert (maxkey l' < k).
+      destruct l. inversion H1.
+      apply btrotl_bstmax in H1. rewrite <- H1.
+      inversion Hs; assumption.
+    apply btrotr_bst in H2. assumption.
+    apply btrotl_bst in H1; try assumption.
+    destruct r as [| [rk rd] rl rr].
+      apply bsthil; assumption.
+      inversion Hs;
+        apply bstbal; assumption.
+  Case "RL".
+    destruct r' as [| [r'k r'd] r'l r'r]. inversion H1.
+    assert (k < minkey (btsub (nd r'k r'd) r'l r'r)).
+      destruct r. inversion H1.
+      apply btrotr_bstmin in H1. rewrite <- H1.
+      inversion Hs; assumption.
+    apply btrotl_bst in H2. assumption.
+    apply btrotr_bst in H1; try assumption.
+    destruct l as [| [lk ld] ll lr].
+      apply bsthir; assumption.
+      inversion Hs;
+        apply bstbal; assumption.
 Qed.
 
 Inductive avlins {X : Type} : @bt X -> @node X -> @bt X -> Prop :=
@@ -759,16 +867,6 @@ Inductive btbal {X : Type} : @bt X -> Prop :=
 .
 
 Definition avlt2 {X : Type} (t : @bt X) := bst t /\ btbal t.
-
-
-Theorem btrebal_bst {X : Type} : forall t t',
-  @bst X t ->
-  btrebal t t' ->
-  bst t'.
-Proof.
-  intros t t' Hs Hb.
-  admit. (* TODO:  *)
-Qed.
 
 (* Lemma: A BST remains BST if we insert a smaller key to its left subtree. *)
 Lemma avlins_bst_l {X : Type} : forall k d l r k' d' l',
