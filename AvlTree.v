@@ -320,6 +320,145 @@ Inductive bsthaskey {X : Type} : @bt X -> nat -> Prop :=
 .
 Hint Constructors bsthaskey.
 
+Inductive haskey {X : Type} : @bt X -> nat -> Prop :=
+| haskeynd : forall k d l r,
+  haskey (btsub (nd k d) l r) k
+| haskeyl : forall k' k d l r,
+  haskey l k' ->
+  haskey (btsub (nd k d) l r) k'
+| haskeyr : forall k' k d l r,
+  haskey r k' ->
+  haskey (btsub (nd k d) l r) k'
+.
+Hint Constructors haskey.
+
+(* Next, we prove its correctness:
+   [bsthaskey t k] holds if and only if tree contains the key, [haskey t k].
+
+   For this we need several lemmas. *)
+
+Lemma bsthaskey_haskey {X : Type} : forall t k,
+  @bsthaskey X t k ->
+  haskey t k.
+Proof.
+  intros t k Hh.
+  induction Hh. apply haskeynd.
+  apply haskeyl. assumption.
+  apply haskeyr. assumption.
+Qed.
+
+Lemma maxkey_nd {X : Type} : forall k (d : X) l r,
+  k <= maxkey (btsub (nd k d) l r).
+Proof.
+Admitted.
+
+Lemma maxkey_l {X : Type} : forall (n : @node X) l r,
+  maxkey l <= maxkey (btsub n l r).
+Proof.
+Admitted.
+
+Lemma maxkey_r {X : Type} : forall (n : @node X) l r,
+  maxkey r <= maxkey (btsub n l r).
+Proof.
+Admitted.
+
+Lemma haskey_maxkey {X : Type} : forall t k,
+  @haskey X t k ->
+  k <= maxkey t.
+Proof with eauto.
+  intros.
+  induction t;
+    inversion H; subst.
+  Case "haskeynd".
+    apply maxkey_nd.
+  Case "haskeyl".
+    destruct t1. inversion H4.
+    apply IHt1 in H4.
+    eapply le_trans. eassumption. apply maxkey_l.
+  Case "haskeyr".
+    destruct t2. inversion H4.
+    apply IHt2 in H4.
+    eapply le_trans; eauto using maxkey_r.
+Qed.
+
+Lemma minkey_nd {X : Type} : forall k (d : X) l r,
+  minkey (btsub (nd k d) l r) <= k.
+Proof.
+Admitted.
+
+Lemma minkey_l {X : Type} : forall (n : @node X) l r,
+  minkey (btsub n l r) <= minkey l.
+Proof.
+Admitted.
+
+Lemma minkey_r {X : Type} : forall (n : @node X) l r,
+  minkey (btsub n l r) <= minkey r.
+Proof.
+Admitted.
+
+Lemma haskey_minkey {X : Type} : forall t k,
+  @haskey X t k ->
+  minkey t <= k.
+Proof with eauto.
+  intros.
+  induction t;
+    inversion H; subst.
+  Case "haskeynd".
+    apply minkey_nd.
+  Case "haskeyl".
+    destruct t1. inversion H4.
+    apply IHt1 in H4.
+    generalize @minkey_l; intros.
+    eapply le_trans...
+  Case "haskeyr".
+    destruct t2. inversion H4.
+    eauto using le_trans, minkey_r.
+Qed.
+
+Lemma bst_lr {X : Type} : forall n l r,
+  @bst X (btsub n l r) ->
+  bst l /\ bst r.
+Proof.
+  intros n l r Hs.
+  split; inversion Hs; try constructor; assumption.
+Qed.
+Hint Resolve bst_lr.
+
+Lemma haskey_bsthaskey {X : Type} : forall t k,
+  @bst X t ->
+  haskey t k ->
+  bsthaskey t k.
+Proof with eauto.
+  intros t k' Hs Hh.
+  induction t as [| [k d]]. inversion Hh. (* contradiction when t is nil *)
+  inversion Hh; subst; clear Hh; auto;    (* auto takes care of trivial case *)
+    assert (bst t1 /\ bst t2) as Hs2 by (apply bst_lr in Hs; assumption);
+      destruct Hs2 as [Hsl Hsr]; intuition.
+  (* bsthaskey t1/t2 follows by I.H. *)
+  Case "haskeyl".
+    destruct t1 as [| [lk ln] ll lr]. inversion H4.
+    apply haskey_maxkey in H4.
+    assert (maxkey (btsub (nd lk ln) ll lr) < k) by (inversion Hs; assumption).
+    apply bsthaskeyl. omega.
+    assumption.
+  Case "haskeyr".
+    destruct t2 as [| [rk rn] rl rr]. inversion H4.
+    apply haskey_minkey in H4.
+    assert (k < minkey (btsub (nd rk rn) rl rr)) by (inversion Hs; assumption).
+    apply bsthaskeyr. omega.
+    assumption.
+Qed.
+
+Theorem bsthaskey_correct {X : Type} : forall t k,
+  @bst X t ->
+  (bsthaskey t k <-> haskey t k).
+Proof.
+  intros. split.
+  apply bsthaskey_haskey.
+  apply haskey_bsthaskey; assumption.
+Qed.
+
+
 Inductive bstins {X : Type} : @bt X -> @node X -> @bt X -> Prop :=
 | bstinsnil : forall k' d',
   bstins btnil (nd k' d') (btsub (nd k' d') btnil btnil)
@@ -687,15 +826,6 @@ Lemma bst_minkey_l {X : Type} : forall k d l r,
 Proof.
 Admitted.
 
-Lemma bst_lr {X : Type} : forall n l r,
-  @bst X (btsub n l r) ->
-  bst l /\ bst r.
-Proof.
-  intros n l r Hs.
-  split; inversion Hs; try constructor; assumption.
-Qed.
-Hint Resolve bst_lr.
-
 Lemma btrotr_bst {X : Type} : forall t t',
   @bst X t ->
   btrotr t t' ->
@@ -852,131 +982,6 @@ Proof.
         apply bstbal; assumption.
 Qed.
 
-
-Inductive haskey {X : Type} : @bt X -> nat -> Prop :=
-| haskeynd : forall k d l r,
-  haskey (btsub (nd k d) l r) k
-| haskeyl : forall k' k d l r,
-  haskey l k' ->
-  haskey (btsub (nd k d) l r) k'
-| haskeyr : forall k' k d l r,
-  haskey r k' ->
-  haskey (btsub (nd k d) l r) k'
-.
-Hint Constructors haskey.
-
-
-Lemma bsthaskey_haskey {X : Type} : forall t k,
-  @bsthaskey X t k ->
-  haskey t k.
-Proof.
-  intros t k Hh.
-  induction Hh. apply haskeynd.
-  apply haskeyl. assumption.
-  apply haskeyr. assumption.
-Qed.
-
-Lemma maxkey_nd {X : Type} : forall k (d : X) l r,
-  k <= maxkey (btsub (nd k d) l r).
-Proof.
-Admitted.
-
-Lemma maxkey_l {X : Type} : forall (n : @node X) l r,
-  maxkey l <= maxkey (btsub n l r).
-Proof.
-Admitted.
-
-Lemma maxkey_r {X : Type} : forall (n : @node X) l r,
-  maxkey r <= maxkey (btsub n l r).
-Proof.
-Admitted.
-
-Lemma haskey_maxkey {X : Type} : forall t k,
-  @haskey X t k ->
-  k <= maxkey t.
-Proof with eauto.
-  intros.
-  induction t;
-    inversion H; subst.
-  Case "haskeynd".
-    apply maxkey_nd.
-  Case "haskeyl".
-    destruct t1. inversion H4.
-    apply IHt1 in H4.
-    eapply le_trans. eassumption. apply maxkey_l.
-  Case "haskeyr".
-    destruct t2. inversion H4.
-    apply IHt2 in H4.
-    eapply le_trans; eauto using maxkey_r.
-Qed.
-
-Lemma minkey_nd {X : Type} : forall k (d : X) l r,
-  minkey (btsub (nd k d) l r) <= k.
-Proof.
-Admitted.
-
-Lemma minkey_l {X : Type} : forall (n : @node X) l r,
-  minkey (btsub n l r) <= minkey l.
-Proof.
-Admitted.
-
-Lemma minkey_r {X : Type} : forall (n : @node X) l r,
-  minkey (btsub n l r) <= minkey r.
-Proof.
-Admitted.
-
-Lemma haskey_minkey {X : Type} : forall t k,
-  @haskey X t k ->
-  minkey t <= k.
-Proof with eauto.
-  intros.
-  induction t;
-    inversion H; subst.
-  Case "haskeynd".
-    apply minkey_nd.
-  Case "haskeyl".
-    destruct t1. inversion H4.
-    apply IHt1 in H4.
-    generalize @minkey_l; intros.
-    eapply le_trans...
-  Case "haskeyr".
-    destruct t2. inversion H4.
-    eauto using le_trans, minkey_r.
-Qed.
-
-Lemma haskey_bsthaskey {X : Type} : forall t k,
-  @bst X t ->
-  haskey t k ->
-  bsthaskey t k.
-Proof with eauto.
-  intros t k' Hs Hh.
-  induction t as [| [k d]]. inversion Hh. (* contradiction when t is nil *)
-  inversion Hh; subst; clear Hh; auto;    (* auto takes care of trivial case *)
-    assert (bst t1 /\ bst t2) as Hs2 by (apply bst_lr in Hs; assumption);
-      destruct Hs2 as [Hsl Hsr]; intuition.
-  (* bsthaskey t1/t2 follows by I.H. *)
-  Case "haskeyl".
-    destruct t1 as [| [lk ln] ll lr]. inversion H4.
-    apply haskey_maxkey in H4.
-    assert (maxkey (btsub (nd lk ln) ll lr) < k) by (inversion Hs; assumption).
-    apply bsthaskeyl. omega.
-    assumption.
-  Case "haskeyr".
-    destruct t2 as [| [rk rn] rl rr]. inversion H4.
-    apply haskey_minkey in H4.
-    assert (k < minkey (btsub (nd rk rn) rl rr)) by (inversion Hs; assumption).
-    apply bsthaskeyr. omega.
-    assumption.
-Qed.
-
-Theorem bsthaskey_correct {X : Type} : forall t k,
-  @bst X t ->
-  (bsthaskey t k <-> haskey t k).
-Proof.
-  intros. split.
-  apply bsthaskey_haskey.
-  apply haskey_bsthaskey; assumption.
-Qed.
 
 Inductive avlins {X : Type} : @bt X -> @node X -> @bt X -> Prop :=
 | avlinsnil : forall k' d',
