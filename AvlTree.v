@@ -306,6 +306,20 @@ Example test_bst_0 : bst (
 Proof. repeat constructor.
 Qed.
 
+Inductive bsthaskey {X : Type} : @bt X -> nat -> Prop :=
+| bsthaskeynd : forall k d l r,
+  bsthaskey (btsub (nd k d) l r) k
+| bsthaskeyl : forall k' k d l r,
+  k' < k ->
+  bsthaskey l k' ->
+  bsthaskey (btsub (nd k d) l r) k'
+| bsthaskeyr : forall k' k d l r,
+  k < k' ->
+  bsthaskey r k' ->
+  bsthaskey (btsub (nd k d) l r) k'
+.
+Hint Constructors bsthaskey.
+
 Inductive bstins {X : Type} : @bt X -> @node X -> @bt X -> Prop :=
 | bstinsnil : forall k' d',
   bstins btnil (nd k' d') (btsub (nd k' d') btnil btnil)
@@ -479,6 +493,16 @@ Proof with auto.
     inversion Hs; eapply bstbal; eauto.
 Qed.
 
+Theorem bstins_bsthaskey {X : Type} : forall t k d t',
+  @bstins X t (nd k d) t' ->
+  bsthaskey t' k.
+Proof with auto.
+  intros t k d t' Hi.
+  remember (nd k d) as n.
+  induction Hi;
+    inversion Heqn; subst;
+      auto.
+Qed.
 
 (* It is easier to work with successors of [height] because the case when
    [height t = 0] is ambiguous - t is either [btnil] or [btsub _ btnil btnil].*)
