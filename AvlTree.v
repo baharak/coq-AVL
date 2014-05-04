@@ -853,27 +853,27 @@ Proof.
 Qed.
 
 
-Inductive bthaskey {X : Type} : @bt X -> nat -> Prop :=
-| bthaskeynd : forall k d l r,
-  bthaskey (btsub (nd k d) l r) k
-| bthaskeyl : forall k' k d l r,
-  bthaskey l k' ->
-  bthaskey (btsub (nd k d) l r) k'
-| bthaskeyr : forall k' k d l r,
-  bthaskey r k' ->
-  bthaskey (btsub (nd k d) l r) k'
+Inductive haskey {X : Type} : @bt X -> nat -> Prop :=
+| haskeynd : forall k d l r,
+  haskey (btsub (nd k d) l r) k
+| haskeyl : forall k' k d l r,
+  haskey l k' ->
+  haskey (btsub (nd k d) l r) k'
+| haskeyr : forall k' k d l r,
+  haskey r k' ->
+  haskey (btsub (nd k d) l r) k'
 .
-Hint Constructors bthaskey.
+Hint Constructors haskey.
 
 
-Lemma bsthaskey_bthaskey {X : Type} : forall t k,
+Lemma bsthaskey_haskey {X : Type} : forall t k,
   @bsthaskey X t k ->
-  bthaskey t k.
+  haskey t k.
 Proof.
   intros t k Hh.
-  induction Hh. apply bthaskeynd.
-  apply bthaskeyl. assumption.
-  apply bthaskeyr. assumption.
+  induction Hh. apply haskeynd.
+  apply haskeyl. assumption.
+  apply haskeyr. assumption.
 Qed.
 
 Lemma maxkey_nd {X : Type} : forall k (d : X) l r,
@@ -891,20 +891,20 @@ Lemma maxkey_r {X : Type} : forall (n : @node X) l r,
 Proof.
 Admitted.
 
-Lemma bthaskey_maxkey {X : Type} : forall t k,
-  @bthaskey X t k ->
+Lemma haskey_maxkey {X : Type} : forall t k,
+  @haskey X t k ->
   k <= maxkey t.
 Proof with eauto.
   intros.
   induction t;
     inversion H; subst.
-  Case "bthaskeynd".
+  Case "haskeynd".
     apply maxkey_nd.
-  Case "bthaskeyl".
+  Case "haskeyl".
     destruct t1. inversion H4.
     apply IHt1 in H4.
     eapply le_trans. eassumption. apply maxkey_l.
-  Case "bthaskeyr".
+  Case "haskeyr".
     destruct t2. inversion H4.
     apply IHt2 in H4.
     eapply le_trans; eauto using maxkey_r.
@@ -925,28 +925,28 @@ Lemma minkey_r {X : Type} : forall (n : @node X) l r,
 Proof.
 Admitted.
 
-Lemma bthaskey_minkey {X : Type} : forall t k,
-  @bthaskey X t k ->
+Lemma haskey_minkey {X : Type} : forall t k,
+  @haskey X t k ->
   minkey t <= k.
 Proof with eauto.
   intros.
   induction t;
     inversion H; subst.
-  Case "bthaskeynd".
+  Case "haskeynd".
     apply minkey_nd.
-  Case "bthaskeyl".
+  Case "haskeyl".
     destruct t1. inversion H4.
     apply IHt1 in H4.
     generalize @minkey_l; intros.
     eapply le_trans...
-  Case "bthaskeyr".
+  Case "haskeyr".
     destruct t2. inversion H4.
     eauto using le_trans, minkey_r.
 Qed.
 
-Lemma bthaskey_bsthaskey {X : Type} : forall t k,
+Lemma haskey_bsthaskey {X : Type} : forall t k,
   @bst X t ->
-  bthaskey t k ->
+  haskey t k ->
   bsthaskey t k.
 Proof with eauto.
   intros t k' Hs Hh.
@@ -955,15 +955,15 @@ Proof with eauto.
     assert (bst t1 /\ bst t2) as Hs2 by (apply bst_lr in Hs; assumption);
       destruct Hs2 as [Hsl Hsr]; intuition.
   (* bsthaskey t1/t2 follows by I.H. *)
-  Case "bthaskeyl".
+  Case "haskeyl".
     destruct t1 as [| [lk ln] ll lr]. inversion H4.
-    apply bthaskey_maxkey in H4.
+    apply haskey_maxkey in H4.
     assert (maxkey (btsub (nd lk ln) ll lr) < k) by (inversion Hs; assumption).
     apply bsthaskeyl. omega.
     assumption.
-  Case "bthaskeyr".
+  Case "haskeyr".
     destruct t2 as [| [rk rn] rl rr]. inversion H4.
-    apply bthaskey_minkey in H4.
+    apply haskey_minkey in H4.
     assert (k < minkey (btsub (nd rk rn) rl rr)) by (inversion Hs; assumption).
     apply bsthaskeyr. omega.
     assumption.
@@ -971,11 +971,11 @@ Qed.
 
 Theorem bsthaskey_correct {X : Type} : forall t k,
   @bst X t ->
-  (bsthaskey t k <-> bthaskey t k).
+  (bsthaskey t k <-> haskey t k).
 Proof.
   intros. split.
-  apply bsthaskey_bthaskey.
-  apply bthaskey_bsthaskey; assumption.
+  apply bsthaskey_haskey.
+  apply haskey_bsthaskey; assumption.
 Qed.
 
 Inductive avlins {X : Type} : @bt X -> @node X -> @bt X -> Prop :=
