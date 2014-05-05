@@ -490,6 +490,21 @@ Proof.
   apply bstinsnil.
 Qed.
 
+Theorem bstins_deterministic {X : Type} : forall t (n : @node X) t' t'',
+  bstins t n t' ->
+  bstins t n t'' ->
+  t' = t''.
+Proof with auto.
+  intros t n t' t'' Hi' Hi''.
+  generalize dependent t''.
+  induction Hi'; intros;
+    inversion Hi''; subst;
+      try omega. (* cases of insertion in different subtrees are contras *)
+  Case "bstinsnd". reflexivity.
+  Case "bstinsleft". apply IHHi' in H8. subst. reflexivity.
+  Case "bstinsright". erewrite IHHi'... (* using more automation :) *)
+Qed.
+
 Lemma bstins_sub {X : Type} : forall t n t',
   @bstins X t n t' ->
   t' <> btnil.
@@ -674,7 +689,8 @@ Proof with auto.
       intros;
         apply bst_lr in Hs; destruct Hs as [Hsl Hsr].
     SCase "haskeynd".
-      admit.
+      inversion Hi; subst;
+        apply haskeynd... (* after insertion, the node remains untouched *)
     SCase "haskeyl".
       destruct t' as [| [t'k t'd]]. inversion Hi. (* t' cannot be nil *)
       apply haskeyl.
@@ -689,9 +705,30 @@ Proof with auto.
     SCase "k = k".
       subst. apply bstins_haskey in Hi...
   Case "<-".
-    assert (bst t') as Hs' by (eapply bstins_bst; eauto).
-    admit.
+    clear Hs.
+    generalize dependent t.
+    induction H;
+      intros.
+    SCase "haskeynd".
+      inversion Hi; subst;
+        try (right; reflexivity); (* insertion into empty tree implies k = k0 *)
+          left; apply haskeynd... (* otherwise, the node remains untouched *)
+    SCase "haskeyl".
+      inversion Hi; subst.
+      SSCase "bstinsnd". inversion H.
+      SSCase "bstinsleft".
+        apply IHhaskey in H8. destruct H8.
+        left. apply haskeyl. assumption.
+        right. assumption.
+      SSCase "bstinsright".
+        left. apply haskeyl. assumption.
+    SCase "haskeyr".
+      (* symmetric to haskeyl, so I use more automation *)
+      inversion Hi; subst. inversion H.
+      auto.
+      apply IHhaskey in H8. intuition.
 Qed.
+
 
 (* It is easier to work with successors of [height] because the case when
    [height t = 0] is ambiguous - t is either [btnil] or [btsub _ btnil btnil].*)
