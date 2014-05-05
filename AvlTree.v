@@ -643,6 +643,56 @@ Proof with auto.
       auto.
 Qed.
 
+Lemma bstins_haskey {X : Type} : forall t k (d : X) t',
+  bstins t (nd k d) t' ->
+  haskey t' k.
+Proof with eauto.
+  intros.
+  generalize dependent t.
+  induction t';
+    intros;
+      inversion H; subst.
+  apply haskeynd.
+  apply haskeyl. eapply IHt'1...
+  apply haskeyr. eapply IHt'2...
+Qed.
+
+Theorem bstins_correct {X : Type} : forall t k (d : X) t' k',
+  bst t ->
+  bstins t (nd k d) t' ->
+  (haskey t k' \/ k = k' <-> haskey t' k') /\ bst t'.
+Proof with auto.
+  intros t k d t' k' Hs Hi. split;
+    try (eapply bstins_bst; eauto).
+  unfold iff. split;
+    intro H.
+  destruct H.
+  Case "->".
+    apply haskey_bsthaskey in H; try assumption.
+    generalize dependent t'.
+    induction H;
+      intros;
+        apply bst_lr in Hs; destruct Hs as [Hsl Hsr].
+    SCase "haskeynd".
+      admit.
+    SCase "haskeyl".
+      destruct t' as [| [t'k t'd]]. inversion Hi. (* t' cannot be nil *)
+      apply haskeyl.
+      intuition.                  (* clean up I.H. *)
+      inversion Hi; subst.
+      SSCase "bstinsleft". assert (bst t'1) by eauto using bstins_bst...
+      SSCase "bstinsright". eapply bsthaskey_haskey...
+    SCase "haskeyr".
+       (* symmetric to haskeyl, so I use more automation *)
+       inversion Hi; subst;
+         eauto using bsthaskey_haskey, bstins_bst.
+    SCase "k = k".
+      subst. apply bstins_haskey in Hi...
+  Case "<-".
+    assert (bst t') as Hs' by (eapply bstins_bst; eauto).
+    admit.
+Qed.
+
 (* It is easier to work with successors of [height] because the case when
    [height t = 0] is ambiguous - t is either [btnil] or [btsub _ btnil btnil].*)
 
