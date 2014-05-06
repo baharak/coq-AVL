@@ -675,7 +675,7 @@ Qed.
 Theorem bstins_correct {X : Type} : forall t k (d : X) t' k',
   bst t ->
   bstins t (nd k d) t' ->
-  (haskey t k' \/ k = k' <-> haskey t' k') /\ bst t'.
+  (bsthaskey t k' \/ k = k' <-> bsthaskey t' k') /\ bst t'.
 Proof with auto.
   intros t k d t' k' Hs Hi. split;
     try (eapply bstins_bst; eauto).
@@ -683,27 +683,27 @@ Proof with auto.
     intro H.
   destruct H.
   Case "->".
-    apply haskey_bsthaskey in H; try assumption.
     generalize dependent t'.
     induction H;
       intros;
         apply bst_lr in Hs; destruct Hs as [Hsl Hsr].
     SCase "haskeynd".
       inversion Hi; subst;
-        apply haskeynd... (* after insertion, the node remains untouched *)
+        apply bsthaskeynd... (* after insertion, the node remains untouched *)
     SCase "haskeyl".
       destruct t' as [| [t'k t'd]]. inversion Hi. (* t' cannot be nil *)
-      apply haskeyl.
       intuition.                  (* clean up I.H. *)
       inversion Hi; subst.
-      SSCase "bstinsleft". assert (bst t'1) by eauto using bstins_bst...
-      SSCase "bstinsright". eapply bsthaskey_haskey...
+      SSCase "bstinsleft".
+        assert (bst t'1) by (apply bstins_bst in H13; assumption).
+        apply H1 in H13. apply bsthaskeyl; assumption.
+      SSCase "bstinsright". apply bsthaskeyl; assumption.
     SCase "haskeyr".
        (* symmetric to haskeyl, so I use more automation *)
-       inversion Hi; subst;
-         eauto using bsthaskey_haskey, bstins_bst.
+       inversion Hi...
     SCase "k = k".
-      subst. apply bstins_haskey in Hi...
+      assert (bst t') by eauto using bstins_bst.
+      subst. apply bstins_bsthaskey in Hi. assumption.
   Case "<-".
     clear Hs.
     generalize dependent t.
@@ -712,21 +712,21 @@ Proof with auto.
     SCase "haskeynd".
       inversion Hi; subst;
         try (right; reflexivity); (* insertion into empty tree implies k = k0 *)
-          left; apply haskeynd... (* otherwise, the node remains untouched *)
+          left; apply bsthaskeynd... (* otherwise, the node remains untouched *)
     SCase "haskeyl".
       inversion Hi; subst.
-      SSCase "bstinsnd". inversion H.
+      SSCase "bstinsnd". inversion H0.
       SSCase "bstinsleft".
-        apply IHhaskey in H8. destruct H8.
-        left. apply haskeyl. assumption.
+        apply IHbsthaskey in H9. destruct H9.
+        left. apply bsthaskeyl; assumption.
         right. assumption.
       SSCase "bstinsright".
-        left. apply haskeyl. assumption.
+        left. apply bsthaskeyl; assumption.
     SCase "haskeyr".
       (* symmetric to haskeyl, so I use more automation *)
-      inversion Hi; subst. inversion H.
-      auto.
-      apply IHhaskey in H8. intuition.
+      inversion Hi; subst;
+        try apply IHbsthaskey in H9;
+          intuition.
 Qed.
 
 
