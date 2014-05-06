@@ -517,6 +517,8 @@ Qed.
 Inductive bstins {X : Type} : @bt X -> @node X -> @bt X -> Prop :=
 | bstinsnil : forall k' d',
   bstins btnil (nd k' d') (btsub (nd k' d') btnil btnil)
+| bstinsnd : forall k d l r,
+  bstins (btsub (nd k d) l r) (nd k d) (btsub (nd k d) l r)
 | bstinsl : forall k' d' k d l r l',
   k' < k ->
   bstins l (nd k' d') l' ->
@@ -555,6 +557,7 @@ Proof with auto.
   induction Hi'; intros;
     inversion Hi''; subst;
       try omega. (* cases of insertion in different subtrees are contras *)
+  Case "bstinsnil". reflexivity.
   Case "bstinsnd". reflexivity.
   Case "bstinsl". apply IHHi' in H8. subst. reflexivity.
   Case "bstinsr". erewrite IHHi'... (* using more automation :) *)
@@ -580,7 +583,7 @@ Proof.
   generalize dependent k'.
   generalize dependent d'.
   induction t; intros. intuition.
-  inversion Hi; subst.
+  inversion Hi; subst. admit.
   destruct t1 as [| ln ll lr];
     destruct t2 as [| rn rl rr].
   admit. admit. admit.
@@ -667,6 +670,7 @@ Proof with auto.
     try apply bstleaf;
       assert (bst l /\ bst r) as [Hsl Hsr]
         by (split; inversion Hs; try constructor; assumption).
+  assumption.
 
   assert (bst l') as Hsl' by auto.
   destruct l' as [| [l'k l'd] l'l l'r]. inversion Hi.
@@ -723,6 +727,7 @@ Proof with eauto.
     intros;
       inversion H; subst.
   apply haskeynd.
+  apply haskeynd.
   apply haskeyl. eapply IHt'1...
   apply haskeyr. eapply IHt'2...
 Qed.
@@ -736,8 +741,8 @@ Proof with auto.
     try (eapply bstins_bst; eauto).
   unfold iff. split;
     intro H.
-  destruct H.
   Case "->".
+    destruct H.
     generalize dependent t'.
     induction H;
       intros;
@@ -749,6 +754,7 @@ Proof with auto.
       destruct t' as [| [t'k t'd]]. inversion Hi. (* t' cannot be nil *)
       intuition.                  (* clean up I.H. *)
       inversion Hi; subst.
+      apply bstsearchl; assumption.
       SSCase "bstinsl".
         assert (bst t'1) by (apply bstins_bst in H13; assumption).
         apply H1 in H13. apply bstsearchl; assumption.
@@ -756,6 +762,7 @@ Proof with auto.
     SCase "haskeyr".
        (* symmetric to haskeyl, so I use more automation *)
        inversion Hi...
+       subst...
     SCase "k = k".
       assert (bst t') by eauto using bstins_bst.
       subst. apply bstins_bstsearch in Hi. assumption.
@@ -770,7 +777,8 @@ Proof with auto.
           left; apply bstsearchnd... (* otherwise, the node remains untouched *)
     SCase "haskeyl".
       inversion Hi; subst.
-      SSCase "bstinsnd". inversion H0.
+      SSCase "bstinsnil". inversion H0.
+      SSCase "bstinsnd". auto.
       SSCase "bstinsl".
         apply IHbstsearch in H9. destruct H9.
         left. apply bstsearchl; assumption.
