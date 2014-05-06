@@ -306,19 +306,19 @@ Example test_bst_0 : bst (
 Proof. repeat constructor.
 Qed.
 
-Inductive bsthaskey {X : Type} : @bt X -> nat -> Prop :=
-| bsthaskeynd : forall k d l r,
-  bsthaskey (btsub (nd k d) l r) k
-| bsthaskeyl : forall k' k d l r,
+Inductive bstsearch {X : Type} : @bt X -> nat -> Prop :=
+| bstsearchnd : forall k d l r,
+  bstsearch (btsub (nd k d) l r) k
+| bstsearchl : forall k' k d l r,
   k' < k ->
-  bsthaskey l k' ->
-  bsthaskey (btsub (nd k d) l r) k'
-| bsthaskeyr : forall k' k d l r,
+  bstsearch l k' ->
+  bstsearch (btsub (nd k d) l r) k'
+| bstsearchr : forall k' k d l r,
   k < k' ->
-  bsthaskey r k' ->
-  bsthaskey (btsub (nd k d) l r) k'
+  bstsearch r k' ->
+  bstsearch (btsub (nd k d) l r) k'
 .
-Hint Constructors bsthaskey.
+Hint Constructors bstsearch.
 
 Inductive haskey {X : Type} : @bt X -> nat -> Prop :=
 | haskeynd : forall k d l r,
@@ -333,12 +333,12 @@ Inductive haskey {X : Type} : @bt X -> nat -> Prop :=
 Hint Constructors haskey.
 
 (* Next, we prove its correctness:
-   [bsthaskey t k] holds if and only if tree contains the key, [haskey t k].
+   [bstsearch t k] holds if and only if tree contains the key, [haskey t k].
 
    For this we need several lemmas. *)
 
-Lemma bsthaskey_haskey {X : Type} : forall t k,
-  @bsthaskey X t k ->
+Lemma bstsearch_haskey {X : Type} : forall t k,
+  @bstsearch X t k ->
   haskey t k.
 Proof.
   intros t k Hh.
@@ -424,49 +424,49 @@ Proof.
 Qed.
 Hint Resolve bst_lr.
 
-Lemma haskey_bsthaskey {X : Type} : forall t k,
+Lemma haskey_bstsearch {X : Type} : forall t k,
   @bst X t ->
   haskey t k ->
-  bsthaskey t k.
+  bstsearch t k.
 Proof with eauto.
   intros t k' Hs Hh.
   induction t as [| [k d]]. inversion Hh. (* contradiction when t is nil *)
   inversion Hh; subst; clear Hh; auto;    (* auto takes care of trivial case *)
     assert (bst t1 /\ bst t2) as Hs2 by (apply bst_lr in Hs; assumption);
       destruct Hs2 as [Hsl Hsr]; intuition.
-  (* bsthaskey t1/t2 follows by I.H. *)
+  (* bstsearch t1/t2 follows by I.H. *)
   Case "haskeyl".
     destruct t1 as [| [lk ln] ll lr]. inversion H4.
     apply haskey_maxkey in H4.
     assert (maxkey (btsub (nd lk ln) ll lr) < k) by (inversion Hs; assumption).
-    apply bsthaskeyl. omega.
+    apply bstsearchl. omega.
     assumption.
   Case "haskeyr".
     destruct t2 as [| [rk rn] rl rr]. inversion H4.
     apply haskey_minkey in H4.
     assert (k < minkey (btsub (nd rk rn) rl rr)) by (inversion Hs; assumption).
-    apply bsthaskeyr. omega.
+    apply bstsearchr. omega.
     assumption.
 Qed.
 
-Theorem bsthaskey_correct {X : Type} : forall t k,
+Theorem bstsearch_correct {X : Type} : forall t k,
   @bst X t ->
-  (bsthaskey t k <-> haskey t k).
+  (bstsearch t k <-> haskey t k).
 Proof.
   intros. split.
-  apply bsthaskey_haskey.
-  apply haskey_bsthaskey; assumption.
+  apply bstsearch_haskey.
+  apply haskey_bstsearch; assumption.
 Qed.
 
 
 Inductive bstins {X : Type} : @bt X -> @node X -> @bt X -> Prop :=
 | bstinsnil : forall k' d',
   bstins btnil (nd k' d') (btsub (nd k' d') btnil btnil)
-| bstinsleft : forall k' d' k d l r l',
+| bstinsl : forall k' d' k d l r l',
   k' < k ->
   bstins l (nd k' d') l' ->
   bstins (btsub (nd k d) l r) (nd k' d') (btsub (nd k d) l' r)
-| bstinsright : forall k' d' k d l r r',
+| bstinsr : forall k' d' k d l r r',
   k < k' ->
   bstins r (nd k' d') r' ->
   bstins (btsub (nd k d) l r) (nd k' d') (btsub (nd k d) l r')
@@ -477,7 +477,7 @@ Example test_bstins_left : bstins
 (nd 3 0)
 (btsub (nd 5 0) (btsub (nd 3 0) btnil btnil) btnil).
 Proof.
-  intros. apply bstinsleft. omega.
+  intros. apply bstinsl. omega.
   apply bstinsnil.
 Qed.
 
@@ -486,7 +486,7 @@ Example test_bstins_right : bstins
 (nd 4 0)
 (btsub (nd 1 0) btnil (btsub (nd 4 0) btnil btnil)).
 Proof.
-  intros. apply bstinsright. omega.
+  intros. apply bstinsr. omega.
   apply bstinsnil.
 Qed.
 
@@ -501,8 +501,8 @@ Proof with auto.
     inversion Hi''; subst;
       try omega. (* cases of insertion in different subtrees are contras *)
   Case "bstinsnd". reflexivity.
-  Case "bstinsleft". apply IHHi' in H8. subst. reflexivity.
-  Case "bstinsright". erewrite IHHi'... (* using more automation :) *)
+  Case "bstinsl". apply IHHi' in H8. subst. reflexivity.
+  Case "bstinsr". erewrite IHHi'... (* using more automation :) *)
 Qed.
 
 Lemma bstins_sub {X : Type} : forall t n t',
@@ -647,9 +647,9 @@ Proof with auto.
     inversion Hs; eapply bstbal; eauto.
 Qed.
 
-Theorem bstins_bsthaskey {X : Type} : forall t k d t',
+Theorem bstins_bstsearch {X : Type} : forall t k d t',
   @bstins X t (nd k d) t' ->
-  bsthaskey t' k.
+  bstsearch t' k.
 Proof with auto.
   intros t k d t' Hi.
   remember (nd k d) as n.
@@ -675,7 +675,7 @@ Qed.
 Theorem bstins_correct {X : Type} : forall t k (d : X) t' k',
   bst t ->
   bstins t (nd k d) t' ->
-  (bsthaskey t k' \/ k = k' <-> bsthaskey t' k') /\ bst t'.
+  (bstsearch t k' \/ k = k' <-> bstsearch t' k') /\ bst t'.
 Proof with auto.
   intros t k d t' k' Hs Hi. split;
     try (eapply bstins_bst; eauto).
@@ -689,21 +689,21 @@ Proof with auto.
         apply bst_lr in Hs; destruct Hs as [Hsl Hsr].
     SCase "haskeynd".
       inversion Hi; subst;
-        apply bsthaskeynd... (* after insertion, the node remains untouched *)
+        apply bstsearchnd... (* after insertion, the node remains untouched *)
     SCase "haskeyl".
       destruct t' as [| [t'k t'd]]. inversion Hi. (* t' cannot be nil *)
       intuition.                  (* clean up I.H. *)
       inversion Hi; subst.
-      SSCase "bstinsleft".
+      SSCase "bstinsl".
         assert (bst t'1) by (apply bstins_bst in H13; assumption).
-        apply H1 in H13. apply bsthaskeyl; assumption.
-      SSCase "bstinsright". apply bsthaskeyl; assumption.
+        apply H1 in H13. apply bstsearchl; assumption.
+      SSCase "bstinsr". apply bstsearchl; assumption.
     SCase "haskeyr".
        (* symmetric to haskeyl, so I use more automation *)
        inversion Hi...
     SCase "k = k".
       assert (bst t') by eauto using bstins_bst.
-      subst. apply bstins_bsthaskey in Hi. assumption.
+      subst. apply bstins_bstsearch in Hi. assumption.
   Case "<-".
     clear Hs.
     generalize dependent t.
@@ -712,20 +712,20 @@ Proof with auto.
     SCase "haskeynd".
       inversion Hi; subst;
         try (right; reflexivity); (* insertion into empty tree implies k = k0 *)
-          left; apply bsthaskeynd... (* otherwise, the node remains untouched *)
+          left; apply bstsearchnd... (* otherwise, the node remains untouched *)
     SCase "haskeyl".
       inversion Hi; subst.
       SSCase "bstinsnd". inversion H0.
-      SSCase "bstinsleft".
-        apply IHbsthaskey in H9. destruct H9.
-        left. apply bsthaskeyl; assumption.
+      SSCase "bstinsl".
+        apply IHbstsearch in H9. destruct H9.
+        left. apply bstsearchl; assumption.
         right. assumption.
-      SSCase "bstinsright".
-        left. apply bsthaskeyl; assumption.
+      SSCase "bstinsr".
+        left. apply bstsearchl; assumption.
     SCase "haskeyr".
       (* symmetric to haskeyl, so I use more automation *)
       inversion Hi; subst;
-        try apply IHbsthaskey in H9;
+        try apply IHbstsearch in H9;
           intuition.
 Qed.
 
@@ -836,7 +836,7 @@ Qed.
 Theorem bstdel_correct {X : Type} : forall (t : @bt X) k' t' k,
   bst t ->
   bstdel t k' t' ->
-  (bsthaskey t k <-> bsthaskey t' k \/ k = k') /\ bst t'.
+  (bstsearch t k <-> bstsearch t' k \/ k = k') /\ bst t'.
 Proof.
 Admitted.
 
