@@ -256,9 +256,9 @@ Fixpoint minkey {X : Type} (t : @bt X) : nat :=
     | btsub (nd k _) l r =>
       match l, r with
         | btnil, btnil => k
-        | btnil, btsub _ _ _ => min k (minkey r)
-        | btsub _ _ _, btnil => min k (minkey l)
-        | _, _ => min k (min (minkey l) (minkey r))
+        | btnil, btsub _ _ _ => min (minkey r) k
+        | btsub _ _ _, btnil => min (minkey l) k
+        | _, _ => min (min (minkey l) (minkey r)) k
       end
   end
 .
@@ -275,6 +275,15 @@ Fixpoint maxkey {X : Type} (t : @bt X) : nat :=
       end
   end
 .
+
+(* Since we are going to work with min/max a lot, we better add some common
+   lemmas about the min/max from the Coq Standard library - GenericMinMax:
+   Lemma le_max_l : forall n m, n <= max n m.
+   Lemma le_max_r : forall n m, m <= max n m. *)
+(* Hint Resolve le_min_l. *)
+(* Hint Resolve le_min_r. *)
+(* Hint Resolve le_max_l. *)
+(* Hint Resolve le_max_r. *)
 
 Inductive bst {X : Type} : @bt X -> Prop :=
 | bstnil : bst btnil
@@ -350,17 +359,39 @@ Qed.
 Lemma maxkey_nd {X : Type} : forall k (d : X) l r,
   k <= maxkey (btsub (nd k d) l r).
 Proof.
-Admitted.
+  intros.
+  destruct l;
+    destruct r;
+      try (simpl; reflexivity);
+        destruct n;
+          try (destruct r1; destruct r2);
+            try (destruct l1; destruct l2);
+              simpl; apply le_max_l.
+Qed.
 
-Lemma maxkey_l {X : Type} : forall (n : @node X) l r,
-  maxkey l <= maxkey (btsub n l r).
-Proof.
-Admitted.
+Lemma maxkey_l {X : Type} : forall (n : @node X) ln ll lr r,
+  maxkey (btsub ln ll lr) <= maxkey (btsub n (btsub ln ll lr) r).
+Proof with auto.
+  intros. destruct n. destruct ln as [lk ld].
+  destruct r as [| [rk rd]]. apply le_max_r.
+  assert (forall n m o, m <= max n (max m o))
+    by (intros; rewrite max_comm; rewrite <- max_assoc; apply le_max_l).
+  destruct ll as [| [llk lld]];
+    destruct lr as [| [lrk lrd]];
+      simpl...
+Qed.
 
-Lemma maxkey_r {X : Type} : forall (n : @node X) l r,
-  maxkey r <= maxkey (btsub n l r).
-Proof.
-Admitted.
+Lemma maxkey_r {X : Type} : forall (n : @node X) l rn rl rr,
+  maxkey (btsub rn rl rr) <= maxkey (btsub n l (btsub rn rl rr)).
+Proof with auto.
+  intros. destruct n. destruct rn as [rk rd].
+  destruct l as [| [lk ld]]. apply le_max_r.
+  assert (forall n m o, o <= max n (max m o))
+    by (intros; rewrite max_assoc; apply le_max_r).
+  destruct rl as [| [rlk rld]];
+    destruct rr as [| [rrk rrd]];
+      simpl...
+Qed.
 
 Lemma haskey_maxkey {X : Type} : forall t k,
   @haskey X t k ->
@@ -376,25 +407,49 @@ Proof with eauto.
     apply IHt1 in H4.
     eapply le_trans. eassumption. apply maxkey_l.
   Case "haskeyr".
-    destruct t2. inversion H4.
-    apply IHt2 in H4.
+    destruct t2. solve by inversion.
+    intuition.                  (* apply I.H. forward *)
     eapply le_trans; eauto using maxkey_r.
 Qed.
 
 Lemma minkey_nd {X : Type} : forall k (d : X) l r,
   minkey (btsub (nd k d) l r) <= k.
 Proof.
-Admitted.
+  intros.
+  destruct l;
+    destruct r;
+      try (simpl; reflexivity);
+        destruct n;
+          try (destruct r1; destruct r2);
+            try (destruct l1; destruct l2);
+              simpl; apply le_min_r.
+Qed.
 
-Lemma minkey_l {X : Type} : forall (n : @node X) l r,
-  minkey (btsub n l r) <= minkey l.
-Proof.
-Admitted.
+Lemma minkey_l {X : Type} : forall (n : @node X) ln ll lr r,
+  minkey (btsub n (btsub ln ll lr) r) <= minkey (btsub ln ll lr).
+Proof with auto.
+  intros. destruct n. destruct ln as [lk ld].
+  destruct r as [| [rk rd]]. apply le_min_l.
+  assert (forall n m o, min (min n m) o <= n)
+    by (intros; rewrite <- min_assoc; apply le_min_l).
+  assert (forall n m o p, min (min (min n m) o) p <= min n m)
+    by (intros; rewrite <- min_assoc; apply le_min_l).
+  destruct ll as [| [llk lld]];
+    destruct lr as [| [lrk lrd]];
+      simpl...
+Qed.
 
-Lemma minkey_r {X : Type} : forall (n : @node X) l r,
-  minkey (btsub n l r) <= minkey r.
-Proof.
-Admitted.
+Lemma minkey_r {X : Type} : forall (n : @node X) l rn rl rr,
+  minkey (btsub n l (btsub rn rl rr)) <= minkey (btsub rn rl rr).
+Proof with auto.
+  intros. destruct n. destruct rn as [rk rd].
+  destruct l as [| [lk ld]]. apply le_min_l.
+  assert (forall n m o, min (min n m) o <= m)
+    by (intros; rewrite min_comm; rewrite min_assoc; apply le_min_r).
+  destruct rl as [| [rlk rld]];
+    destruct rr as [| [rrk rrd]];
+      simpl...
+Qed.
 
 Lemma haskey_minkey {X : Type} : forall t k,
   @haskey X t k ->
@@ -997,6 +1052,16 @@ Lemma bst_minkey_nd {X : Type} : forall k d r,
   @bst X (btsub (nd k d) btnil r) ->
   minkey (btsub (nd k d) btnil r) = k.
 Proof.
+  intros.
+  generalize @minkey_nd; intros.
+ inversion H; subst. auto.
+ set (btsub (nd rk rd) rl rr) as r in *.
+ set (btsub (nd k d) btnil r) as t in *.
+ assert (minkey r <= rk) by eauto.
+ assert (minkey t <= k) by eauto.
+ assert (k < rk) by omega.
+ assert (minkey t < minkey r) by omega.
+ (* STUCK *)
 Admitted.
 
 Lemma bst_maxkey_r {X : Type} : forall k d l r,
