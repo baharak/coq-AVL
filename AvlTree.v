@@ -729,6 +729,116 @@ Proof with auto.
           intuition.
 Qed.
 
+(* For BST deletion, we need to find an in-order predecessor/successor [p]/[s]
+   that is a descendent of the left/right subtree of [n], i.e.:
+       n              n
+      / \            / \
+     l                  r
+    / \      and       /
+       .              .
+        .            .
+         \          /
+          p        s
+
+   These are equivalent to the rightmost/leftmost node in left/right subtree,
+   so we first define partial functions [btlmost] and [btrmost]. *)
+
+Inductive btlmostnd {X : Type} : @bt X -> @node X -> Prop :=
+  | btlmostndleaf : forall n r,
+    btlmostnd (btsub n btnil r) n
+  | btlmostndsub : forall n l r n',
+    btlmostnd l n' ->
+    btlmostnd (btsub n l r) n'
+.
+Hint Constructors btlmostnd.
+
+Inductive btrmostnd {X : Type} : @bt X -> @node X -> Prop :=
+  | btrmostndleaf : forall n l,
+    btrmostnd (btsub n l btnil) n
+  | btrmostndsub : forall n l r n',
+    btrmostnd r n' ->
+    btrmostnd (btsub n l r) n'
+.
+Hint Constructors btrmostnd.
+
+(* We can now define a BST deletion operation.
+
+   Note that it is not even a (partial) function because we have the
+   choice of choosing whether to replace the deleted node with
+   in-order predecessor or sucessor of a node with 2 children.
+   Actually, good implementations choose between the two choices to
+   keep the tree as balanced as possible.  To permit this choice, we
+   *must* use [Inductive] (even if bt(l/r)mostnd were [Fixpoint]). *)
+
+Inductive bstdel {X : Type} : @bt X -> nat -> @bt X -> Prop :=
+| bstdelleaf : forall k d,
+(* Case key n = k' and n is leaf:                 n     -->          *)
+  bstdel (btsub (nd k d) btnil btnil) k btnil
+| bstdelndl : forall k d ln ll lr l' r pk pd, (*  n             p    *)
+(* Case key n = k' and n has left child:         / \           / \   *)
+(*                                              l       -->   l'     *)
+(*                                               \             \     *)
+(*                                                .             .    *)
+(*                                                 .             .   *)
+  btrmostnd (btsub ln ll lr) (nd pk pd) -> (*       \                *)
+  bstdel (btsub ln ll lr) pk l' -> (*                p               *)
+  bstdel (btsub (nd k d) (btsub ln ll lr) r) k (btsub (nd pk pd) l' r)
+| bstdelndr : forall k d l rn rl rr r' pk pd, (*  n             s    *)
+(* Case key n = k' and n has right child:        / \           / \   *)
+(*                                                  r   -->       r' *)
+(*                                                 /             /   *)
+(*                                                .             .    *)
+(*                                               .             .     *)
+  btlmostnd (btsub rn rl rr) (nd pk pd) -> (*   /                    *)
+  bstdel (btsub rn rl rr) pk r' -> (*          s                     *)
+  bstdel (btsub (nd k d) l (btsub rn rl rr)) k (btsub (nd pk pd) l r')
+| bstdell : forall k' k d ln ll lr r l', (*       n             n    *)
+(* Case key n > k':                              / \    -->    / \   *)
+  k' < k -> (*                                  l             l'     *)
+  bstdel (btsub ln ll lr) k' l' ->
+  bstdel (btsub (nd k d) (btsub ln ll lr) r) k (btsub (nd k d) l' r)
+| bstdelr : forall k' k d rn rl rr r r', (*       n             n    *)
+(* Case key n < k':                              / \    -->    / \   *)
+  k < k' -> (*                                      r             r' *)
+  bstdel (btsub rn rl rr) k' r' ->
+  bstdel (btsub (nd k d) (btsub rn rl rr) r) k (btsub (nd k d) r' r)
+.
+Hint Constructors bstdel.
+
+Theorem bstdel_nondeterministic {X : Type} : forall x : X,
+  exists (t : @bt X) k t' t'',
+    bstdel t k t' /\
+    bstdel t k t'' /\
+    t <> t''.
+Proof.
+  intro.                  (* contents of node data doesn't matter *)
+  set (btsub (nd 2 x)     (*          2   *)
+    (btsub (nd 1 x) btnil btnil) (*  / \  *)
+    (btsub (nd 3 x) btnil btnil) (* 1   3 *)
+  ) as t.
+  set 2 as k.               (* now if we delete 2, we can get both: *)
+  set (btsub (nd 1 x)       (*        1   *)
+    btnil                   (*         \  *)
+    (btsub (nd 3 x) btnil btnil) (*     3 *)
+  ) as t'.                       (* and *)
+  set (btsub (nd 3 x)            (*   3   *)
+    (btsub (nd 1 x) btnil btnil) (*  /    *)
+    btnil                        (* 1     *)
+  ) as t''.
+  assert (bstdel t k t') as Ht' by (subst t k t'; auto).
+  assert (bstdel t k t'') as Ht'' by (subst t k t''; auto).
+  exists t. exists k. exists t'. exists t''.
+  split. assumption.
+  split. assumption.
+  intro Hcontra. inversion Hcontra.
+Qed.
+
+Theorem bstdel_correct {X : Type} : forall (t : @bt X) k' t' k,
+  bst t ->
+  bstdel t k' t' ->
+  (bsthaskey t k <-> bsthaskey t' k \/ k = k') /\ bst t'.
+Proof.
+Admitted.
 
 (* It is easier to work with successors of [height] because the case when
    [height t = 0] is ambiguous - t is either [btnil] or [btsub _ btnil btnil].*)
