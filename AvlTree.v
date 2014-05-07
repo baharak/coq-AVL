@@ -285,35 +285,130 @@ Fixpoint maxkey {X : Type} (t : @bt X) : nat :=
 (* Hint Resolve le_max_l. *)
 (* Hint Resolve le_max_r. *)
 
-Inductive bst {X : Type} : @bt X -> Prop :=
-| bstnil : bst btnil
-| bstleaf : forall k d,
-  bst (btsub (nd k d) btnil btnil)
-| bstbal : forall k d lk ld ll lr rk rd rl rr,
-  (maxkey (btsub (nd lk ld) ll lr)) < k ->
-  bst (btsub (nd lk ld) ll lr) ->
-  k < (minkey (btsub (nd rk rd) rl rr)) ->
-  bst (btsub (nd rk rd) rl rr) ->
-  bst (btsub (nd k d) (btsub (nd lk ld) ll lr) (btsub (nd rk rd) rl rr))
-| bsthil : forall k d lk ld ll lr,
-  (maxkey (btsub (nd lk ld) ll lr)) < k ->
-  bst (btsub (nd lk ld) ll lr) ->
-  bst (btsub (nd k d) (btsub (nd lk ld) ll lr) btnil)
-| bsthir : forall k d rk rd rl rr,
-  k < (minkey (btsub (nd rk rd) rl rr)) ->
-  bst (btsub (nd rk rd) rl rr) ->
-  bst (btsub (nd k d) btnil (btsub (nd rk rd) rl rr))
+Inductive haskey {X : Type} : @bt X -> nat -> Prop :=
+| haskeynd : forall k d l r,
+  haskey (btsub (nd k d) l r) k
+| haskeyl : forall k n l r,
+  haskey l k ->
+  haskey (btsub n l r) k
+| haskeyr : forall k n l r,
+  haskey r k ->
+  haskey (btsub n l r) k
 .
-Hint Constructors bst.
+Hint Constructors haskey.
 
-Example test_bst_0 : bst (
-  (btsub (nd 5 0)
-    (btsub (nd 3 0)
-      btnil
-      (btsub (nd 4 0) btnil btnil))
-    (btsub (nd 6 0) btnil btnil))).
-Proof. repeat constructor.
+Fixpoint haskeyb {X: Type} (t : @bt X) (k' : nat) : bool :=
+  match t with
+    | btnil => false
+    | btsub (nd k d) l r => orb (beq_nat k k') (orb
+      (haskeyb l k')
+      (haskeyb r k'))
+  end.
+
+(* We prove the correctness of [haskey_correct] by showing it's equivalent
+   to [Fixpoint] [haskeyb] *)
+
+Theorem haskey_correct {X : Type} : forall (t : @bt X) k,
+  haskey t k <-> haskeyb t k = true.
+Proof.
+  intros. split; intro.
+  Case "->".
+    induction t as [| [k' d']]. inversion H.
+    inversion H; subst.
+    simpl. rewrite <- beq_nat_refl. apply orb_true_iff. left. reflexivity.
+    apply orb_true_iff. right. apply orb_true_iff. left. apply IHt1. assumption.
+    apply orb_true_iff. right. apply orb_true_iff. right. auto.
+  Case "<-".
+    induction t as [| [k' d']];
+      simpl in H.
+    inversion H.
+    apply orb_true_iff in H. destruct H.
+    apply beq_nat_true_iff in H. subst. constructor.
+    apply orb_true_iff in H. destruct H; auto.
 Qed.
+
+
+(* In-order traversal of the tree, i.e.:
+   1) visit left subtree
+   2) visit current node
+   3) visit right subtree *)
+
+Fixpoint btinorder {X : Type} (t : @bt X) : list nat :=
+  match t with
+    | btnil => []
+    | btsub (nd k d) l r => btinorder l ++ k :: btinorder r
+  end.
+
+(* Some lemmas we need from Logic.v, proved using more automation. *)
+
+Hint Constructors appears_in.
+
+Lemma appears_in_app : forall (xs ys : list nat) (x : nat),
+  appears_in x (xs ++ ys) -> appears_in x xs \/ appears_in x ys.
+Proof.
+  intros.
+  induction xs; simpl; intros.
+  right. assumption.
+  inversion H; subst. auto.
+  remember (IHxs H1). destruct o; auto.
+Qed.
+
+Lemma app_appears_in : forall (xs ys : list nat) (x : nat),
+  appears_in x xs \/ appears_in x ys -> appears_in x (xs ++ ys).
+Proof.
+  intros.
+  generalize dependent ys.
+  induction xs; intros;
+    simpl.
+  inversion H. inversion H0. assumption.
+  inversion H. inversion H0; subst; auto.
+  constructor. auto.
+Qed.
+
+Lemma appears_in_app' : forall (xs ys : list nat) (x h : nat),
+  appears_in x (xs ++ h :: ys) ->
+  x = h \/ (appears_in x xs \/ appears_in x ys).
+Proof.
+  intros.
+  induction xs; simpl in H.
+  inversion H; subst;
+    try (left; reflexivity);
+      right.
+  right. assumption.
+  inversion H; subst.
+  right. left. apply ai_here.
+  remember (IHxs H1).
+  destruct o. left. assumption.
+  destruct o; right.
+Admitted.
+
+Theorem btinorder_correct {X : Type} : forall t k,
+  appears_in k (btinorder t) <-> @haskey X t k.
+Proof with auto.
+  intros. split; intro.
+  Case "->".
+    induction t;
+      simpl in H.
+    SCase "btnil". inversion H.
+    SCase "btsub".
+      destruct n as [k' d'].
+      (* apply appears_in_app' in H. *)
+      (* intuition. subst... *)
+      apply appears_in_app in H. destruct H...
+      inversion H...
+  Case "<-".
+    induction t; intros.
+    SCase "btnil". inversion H.
+    SCase "btsub".
+      destruct n as [k' d']; simpl.
+      apply app_appears_in.
+      inversion H...
+Qed.
+
+
+(* Binary Search Tree Search - we define it on any binary tree *)
+(* (later on, we also define an inductive proposition [bst] which
+   represents the Binary Search Tree property) *)
 
 Inductive bstsearch {X : Type} : @bt X -> nat -> Prop :=
 | bstsearchnd : forall k d l r,
@@ -329,19 +424,7 @@ Inductive bstsearch {X : Type} : @bt X -> nat -> Prop :=
 .
 Hint Constructors bstsearch.
 
-Inductive haskey {X : Type} : @bt X -> nat -> Prop :=
-| haskeynd : forall k d l r,
-  haskey (btsub (nd k d) l r) k
-| haskeyl : forall k' k d l r,
-  haskey l k' ->
-  haskey (btsub (nd k d) l r) k'
-| haskeyr : forall k' k d l r,
-  haskey r k' ->
-  haskey (btsub (nd k d) l r) k'
-.
-Hint Constructors haskey.
-
-(* Next, we prove its correctness:
+(* Next, we are going to prove its correctness:
    [bstsearch t k] holds if and only if tree contains the key, [haskey t k].
 
    For this we need several lemmas. *)
@@ -470,6 +553,38 @@ Proof with eauto.
     eauto using le_trans, minkey_r.
 Qed.
 
+(* Binary Search Tree - we permit only unique keys *)
+
+Inductive bst {X : Type} : @bt X -> Prop :=
+| bstnil : bst btnil
+| bstleaf : forall k d,
+  bst (btsub (nd k d) btnil btnil)
+| bstbal : forall k d lk ld ll lr rk rd rl rr,
+  (maxkey (btsub (nd lk ld) ll lr)) < k ->
+  bst (btsub (nd lk ld) ll lr) ->
+  k < (minkey (btsub (nd rk rd) rl rr)) ->
+  bst (btsub (nd rk rd) rl rr) ->
+  bst (btsub (nd k d) (btsub (nd lk ld) ll lr) (btsub (nd rk rd) rl rr))
+| bsthil : forall k d lk ld ll lr,
+  (maxkey (btsub (nd lk ld) ll lr)) < k ->
+  bst (btsub (nd lk ld) ll lr) ->
+  bst (btsub (nd k d) (btsub (nd lk ld) ll lr) btnil)
+| bsthir : forall k d rk rd rl rr,
+  k < (minkey (btsub (nd rk rd) rl rr)) ->
+  bst (btsub (nd rk rd) rl rr) ->
+  bst (btsub (nd k d) btnil (btsub (nd rk rd) rl rr))
+.
+Hint Constructors bst.
+
+Example test_bst_0 : bst (
+  (btsub (nd 5 0)
+    (btsub (nd 3 0)
+      btnil
+      (btsub (nd 4 0) btnil btnil))
+    (btsub (nd 6 0) btnil btnil))).
+Proof. repeat constructor.
+Qed.
+
 Lemma bst_lr {X : Type} : forall n l r,
   @bst X (btsub n l r) ->
   bst l /\ bst r.
@@ -491,18 +606,23 @@ Proof with eauto.
       destruct Hs2 as [Hsl Hsr]; intuition.
   (* bstsearch t1/t2 follows by I.H. *)
   Case "haskeyl".
-    destruct t1 as [| [lk ln] ll lr]. inversion H4.
-    apply haskey_maxkey in H4.
+    destruct t1 as [| [lk ln] ll lr]. inversion H0.
+    apply haskey_maxkey in H3.
     assert (maxkey (btsub (nd lk ln) ll lr) < k) by (inversion Hs; assumption).
     apply bstsearchl. omega.
     assumption.
   Case "haskeyr".
-    destruct t2 as [| [rk rn] rl rr]. inversion H4.
-    apply haskey_minkey in H4.
+    destruct t2 as [| [rk rn] rl rr]. solve by inversion.
+    apply haskey_minkey in H3.
     assert (k < minkey (btsub (nd rk rn) rl rr)) by (inversion Hs; assumption).
     apply bstsearchr. omega.
     assumption.
 Qed.
+
+(* Finally, we can prove the correctness of [bstsearch] using lemmas:
+   - [bstsearch_haskey] - for forward direction
+   - [haskey_bstsearch] - for backward direction
+   given the precondition that the BST property holds on the tree. *)
 
 Theorem bstsearch_correct {X : Type} : forall t k,
   @bst X t ->
