@@ -634,6 +634,39 @@ Proof.
 Qed.
 
 
+(* Another interesting theorem:
+   If a tree is a BST, then its inorder key list is sorted. *)
+
+(* Fixpoint listmin (l : list nat) := *)
+(* | match l with := *)
+
+Inductive unsorted : list nat -> Prop :=
+| unsortedcons : forall x h t,
+  appears_in x t ->
+  x <= h ->
+  unsorted (h :: t)
+.
+Definition sorted (l : list nat) := ~ unsorted l.
+
+Hint Unfold sorted.
+Hint Constructors unsorted.
+
+Theorem bst_inorder_sorted {X : Type} : forall t,
+  @bst X t -> sorted (btinorder t).
+Proof with eauto.
+  intros t Hs. intro H.
+  induction t as [| [k d]];
+    simpl in H.
+  inversion H.
+  admit.
+Qed.
+
+Example test_sorted_145 : sorted [1,4,5].
+Proof.
+  intro. inversion H. inversion H2. omega. inversion H5. omega. inversion H8.
+Qed.
+(* Example test_sorted_153 : ~ sorted [1,5,3]. *)
+
 Inductive bstins {X : Type} : @bt X -> @node X -> @bt X -> Prop :=
 | bstinsnil : forall k' d',
   bstins btnil (nd k' d') (btsub (nd k' d') btnil btnil)
@@ -954,6 +987,9 @@ Hint Constructors btrmostnd.
    *must* use [Inductive] (even if bt(l/r)mostnd were [Fixpoint]). *)
 
 Inductive bstdel {X : Type} : @bt X -> nat -> @bt X -> Prop :=
+| bstdelnone : forall k,
+(* Case n is leaf - nothing to delete:                  -->          *)
+  bstdel btnil k btnil
 | bstdelleaf : forall k d,
 (* Case key n = k' and n is leaf:                 n     -->          *)
   bstdel (btsub (nd k d) btnil btnil) k btnil
@@ -980,11 +1016,11 @@ Inductive bstdel {X : Type} : @bt X -> nat -> @bt X -> Prop :=
   k' < k -> (*                                  l             l'     *)
   bstdel (btsub ln ll lr) k' l' ->
   bstdel (btsub (nd k d) (btsub ln ll lr) r) k (btsub (nd k d) l' r)
-| bstdelr : forall k' k d rn rl rr r r', (*       n             n    *)
+| bstdelr : forall k' k d rn rl rr l r', (*       n             n    *)
 (* Case key n < k':                              / \    -->    / \   *)
   k < k' -> (*                                      r             r' *)
   bstdel (btsub rn rl rr) k' r' ->
-  bstdel (btsub (nd k d) (btsub rn rl rr) r) k (btsub (nd k d) r' r)
+  bstdel (btsub (nd k d) l (btsub rn rl rr)) k (btsub (nd k d) l r')
 .
 Hint Constructors bstdel.
 
@@ -1016,11 +1052,389 @@ Proof.
   intro Hcontra. inversion Hcontra.
 Qed.
 
+Lemma bst_maxkey_nd {X : Type} : forall k d l,
+  @bst X (btsub (nd k d) l btnil) ->
+  maxkey (btsub (nd k d) l btnil) = k.
+Proof.
+  intros.
+  induction l as [| [lk ld]]. reflexivity.
+  inversion H; subst.
+  (* clear H3 lk0 ld0 ll lr. *)
+  (* STUCK *)
+Admitted.
+
+Lemma bst_minkey_nd {X : Type} : forall k d r,
+  @bst X (btsub (nd k d) btnil r) ->
+  minkey (btsub (nd k d) btnil r) = k.
+Proof.
+  intros.
+  generalize @minkey_nd; intros.
+ inversion H; subst. auto.
+ set (btsub (nd rk rd) rl rr) as r in *.
+ set (btsub (nd k d) btnil r) as t in *.
+ assert (minkey r <= rk) by eauto.
+ assert (minkey t <= k) by eauto.
+ assert (k < rk) by omega.
+ assert (minkey t < minkey r) by omega.
+ (* STUCK *)
+Admitted.
+
+Lemma bst_maxkey_r {X : Type} : forall n l rn rl rr,
+  @bst X (btsub n l (btsub rn rl rr)) ->
+  maxkey (btsub n l (btsub rn rl rr)) = maxkey (btsub rn rl rr).
+Proof.
+  (* STUCK *)
+Admitted.
+
+Lemma bst_minkey_l {X : Type} : forall k d ln ll lr r,
+  @bst X (btsub (nd k d) (btsub ln ll lr) r) ->
+  minkey (btsub (nd k d) (btsub ln ll lr) r) = minkey (btsub ln ll lr).
+Proof.
+Admitted.
+
+Lemma bst_btrmostnd_maxkey {X : Type} : forall n l r k d,
+  @bst X (btsub n l r) ->
+  btrmostnd (btsub n l r) (nd k d) ->
+  k = maxkey (btsub n l r).
+Proof.
+  intros n l r k d Hs Hm.
+  induction (btsub n l r) as [| [k' d']]. inversion Hm.
+  inversion Hm; subst.
+  Case "btrmostndleaf".
+    rewrite bst_maxkey_nd. reflexivity. assumption.
+  Case "btrmostndsub".
+    assert (bst b2) by (inversion Hs; auto).
+    intuition.                  (* use I.H. *)
+    destruct b2. inversion H3.
+    rewrite bst_maxkey_r; assumption.
+Qed.
+
+Lemma bst_btlmostnd_minkey {X : Type} : forall n l r k d,
+  @bst X (btsub n l r) ->
+  btlmostnd (btsub n l r) (nd k d) ->
+  k = minkey (btsub n l r).
+Proof.
+  intros n l r k d Hs Hm.
+  induction (btsub n l r) as [| [k' d']]. inversion Hm.
+  inversion Hm; subst.
+  Case "btlmostndleaf".
+    rewrite bst_minkey_nd. reflexivity. assumption.
+  Case "btlmostndsub".
+    assert (bst b1) by (inversion Hs; auto).
+    intuition.                  (* use I.H. *)
+    destruct b1. inversion H3.
+    rewrite bst_minkey_l; assumption.
+Qed.
+
+Lemma btsub_not_nil {X : Type} : forall n l r,
+  @btsub X n l r <> btnil.
+Proof.
+  intros. intro H. inversion H.
+Qed.
+Hint Resolve btsub_not_nil.
+
+Lemma maxkey_le_l_le {X : Type} : forall k d l r k' (d' : X) l',
+  k <= k' ->
+  l = btnil \/ maxkey l <= maxkey l' ->
+  maxkey (btsub (nd k d) l r) <= maxkey (btsub (nd k' d') l' r).
+Proof with eauto.
+Admitted.
+
+Lemma maxkey_le_nd_le {X : Type} : forall k (d : X) l r k' (d' : X) l' r',
+  k <= k' ->
+  l = btnil \/ maxkey l <= maxkey l' ->
+  r = btnil \/ maxkey r <= maxkey r' ->
+  maxkey (btsub (nd k d) l r) <= maxkey (btsub (nd k' d') l' r').
+Proof with eauto.
+Admitted.
+
+Lemma minkey_le_nd_le {X : Type} : forall k (d : X) l r k' (d' : X) l' r',
+  k' <= k ->
+  l = btnil \/ minkey l' <= minkey l ->
+  r = btnil \/ minkey r' <= minkey r ->
+  minkey (btsub (nd k' d') l' r') <= minkey (btsub (nd k d) l r).
+Proof with eauto.
+Admitted.
+
+(* Lemma maxkey_le_l *)
+
+Lemma bst_maxkey_lt {X : Type} : forall k d ln ll lr r,
+  @bst X (btsub (nd k d) (btsub ln ll lr) r) ->
+  maxkey (btsub ln ll lr) < k.
+Proof.
+  intros.
+  inversion H; subst.
+  (* apply maxkey_l *)
+admit. admit.
+Qed.
+Hint Resolve bst_maxkey_lt.
+
+Lemma bst_l {X : Type} : forall n l r,
+  @bst X (btsub n l r) ->
+  bst l.
+Proof. apply bst_lr.
+Qed.
+Lemma bst_r {X : Type} : forall n l r,
+  @bst X (btsub n l r) ->
+  bst r.
+Proof. apply bst_lr.
+Qed.
+
+Lemma minkey_maxkey {X : Type} : forall (n : @node X) l r,
+  minkey (btsub n l r) <= maxkey (btsub n l r).
+Proof.
+  intros [k d] l r.
+  assert (forall n m, min n m <= max n m).
+    intros. destruct (min_dec n m); rewrite e. apply le_max_l. apply le_max_r.
+  destruct l;
+    destruct r;
+      simpl.
+  reflexivity.
+  (* STUCK *)
+Admitted.
+
+Lemma maxkey_r_eq {X : Type} : forall k (d : X) l r,
+  l = btnil \/ maxkey l <= k ->
+  k <= maxkey r ->
+  maxkey (btsub (nd k d) l r) = maxkey r.
+Proof.
+Admitted.
+
+Lemma minkey_l_eq {X : Type} : forall k (d : X) l r,
+  k <= minkey l ->
+  r = btnil \/ k <= minkey r ->
+  minkey (btsub (nd k d) l r) = minkey l.
+Proof.
+Admitted.
+
+Lemma minkey_nd_eq {X : Type} : forall k (d : X) r,
+  r = btnil \/ k <= minkey r ->
+  minkey (btsub (nd k d) btnil r) = k.
+Proof with eauto.
+Admitted.
+
+Lemma minkey_l_min {X : Type} : forall k (d : X) ln ll lr r,
+  r = btnil \/ k <= minkey r ->
+  minkey (btsub (nd k d) (btsub ln ll lr) r) = min k (minkey (btsub ln ll lr)).
+Proof.
+Admitted.
+
+Lemma maxkey_nd_eq {X : Type} : forall k (d : X) l,
+  l = btnil \/ maxkey l <= k ->
+  maxkey (btsub (nd k d) l btnil) = k.
+Proof with eauto.
+Admitted.
+
+Lemma maxkey_r_max {X : Type} : forall k (d : X) l rn rl rr,
+  l = btnil \/ maxkey l <= k ->
+  maxkey (btsub (nd k d) l (btsub rn rl rr)) = max k (maxkey (btsub rn rl rr)).
+Proof.
+Admitted.
+
+
+Lemma bst_bstdel_le_invariant {X : Type} : forall t k t',
+  t' <> btnil ->
+  @bst X t ->
+  bstdel t k t' ->
+  (maxkey t' <= maxkey t /\ minkey t <= minkey t').
+Proof with auto.
+  intros t k' t' Ht' Hs Hd.
+  generalize dependent t'.
+  generalize dependent k'.
+  induction t as [| [k d]]; intros;
+    inversion Hd; subst.
+  intuition.                    (* base case is contradiction *)
+  Case "bstdelleaf". intuition.
+  Case "bstdelndl".
+    set (btsub ln ll lr) as l.
+    assert (maxkey l < k') by (subst l; inversion Hs; assumption).
+    (* assert (bst l) as Hsl by (subst l; inversion Hs; auto). *)
+    assert (bst l) as Hsl by (apply bst_l in Hs; assumption).
+    subst l. apply bst_btrmostnd_maxkey in H5; try assumption.
+    split;
+      destruct l'.
+    SCase "maxkey".
+      SSCase "l' = btnil". apply maxkey_le_nd_le... omega.
+      SSCase "l' = btsub".
+        apply IHt1 in H6... destruct H6.
+        subst. apply maxkey_le_nd_le... omega.
+    SCase "minkey".
+      SSCase "l' = btnil".
+        rewrite minkey_l. rewrite minkey_nd_eq. subst.
+        apply minkey_maxkey.
+        destruct t2. left. reflexivity.
+        assert (k' < minkey (btsub n t2_1 t2_2)) by (inversion Hs; assumption).
+        right. omega.
+      SSCase "l' = btsub".
+        apply IHt1 in H6... destruct H6.
+        rewrite minkey_l. rewrite H1.
+        rewrite minkey_l_min. subst.
+        set (btsub ln ll lr) as l in *.
+        set (btsub n l'1 l'2) as l' in *.
+        destruct (min_dec (maxkey l) (minkey l')); rewrite e.
+          eapply le_trans. apply minkey_maxkey. subst l l'; assumption.
+          reflexivity.
+        destruct t2. left. reflexivity.
+        assert (pk < k') as Hkp by (subst pk; inversion Hs; assumption).
+        assert (k' < minkey (btsub n0 t2_1 t2_2))
+          by (inversion Hs; assumption).
+        right. omega.
+  Case "bstdelndr".
+    set (btsub rn rl rr) as r.
+    assert (k' < minkey r) by (subst r; inversion Hs; assumption).
+    assert (bst r) as Hsr by (apply bst_r in Hs; assumption).
+    subst r. apply bst_btlmostnd_minkey in H5; try assumption.
+    assert (k' < sk) by (subst sk; inversion Hs; assumption).
+    split;
+      destruct r'.
+    SCase "maxkey".
+      SSCase "r' = btnil".
+        rewrite <- maxkey_r. rewrite maxkey_nd_eq. subst.
+        apply minkey_maxkey.
+        destruct t1. left. reflexivity.
+        assert (maxkey (btsub n t1_1 t1_2) < k') by (inversion Hs; assumption).
+        right. omega.
+      SSCase "l' = btsub".
+        apply IHt2 in H6... destruct H6.
+        assert (maxkey (btsub rn rl rr) <=
+          maxkey (btsub (nd k' d) t1 (btsub rn rl rr))) by apply maxkey_r.
+        eapply le_trans; try eassumption. rewrite <- H1.
+        rewrite maxkey_r_max. subst.
+        destruct (max_dec (minkey (btsub rn rl rr)) (maxkey (btsub n r'1 r'2)));
+          rewrite e.
+          eapply le_trans. apply H2. apply minkey_maxkey.
+          reflexivity.
+        destruct t1. left. reflexivity.
+        assert (k' < sk) as Hks by (subst sk; inversion Hs; assumption).
+        assert (maxkey (btsub n0 t1_1 t1_2) < k')
+          by (inversion Hs; assumption).
+        right. omega.
+    SCase "minkey".
+      SSCase "l' = btnil". apply minkey_le_nd_le... omega.
+      SSCase "l' = btsub".
+        apply IHt2 in H6... destruct H6.
+        subst. apply minkey_le_nd_le... omega.
+  Case "bstdell".
+    assert (bst (btsub ln ll lr)) by (inversion Hs; assumption).
+    split.
+    SCase "maxkey".
+      apply maxkey_le_nd_le...
+      destruct l'. left. reflexivity.
+      right. apply IHt1 in H6... destruct H6. assumption.
+    SCase "minkey".
+      apply minkey_le_nd_le...
+      destruct l'. left. reflexivity.
+      right. apply IHt1 in H6... destruct H6. assumption.
+  Case "bstdelr".
+    assert (bst (btsub rn rl rr)) by (inversion Hs; assumption).
+    split;
+      try (apply maxkey_le_nd_le; auto);
+        try (apply minkey_le_nd_le; auto);
+          destruct r'; auto;
+            apply IHt2 in H6; auto; destruct H6...
+Qed.
+
+(* This lemma should be simpler to prove than the above:
+
+   Probably we need the*)
+Lemma bst_bstdel_max_ne {X : Type} : forall t k (d : X) t',
+  t' <> btnil ->
+  @bst X t ->
+  btrmostnd t (nd k d) ->
+  bstdel t k t' ->
+  maxkey t' <> k.
+Proof.
+(* probably we need to use bst_bstdel_le_invariant at some point *)
+Admitted.
+
+Lemma bst_bstdel_min_ne {X : Type} : forall t k (d : X) t',
+  t' <> btnil ->
+  @bst X t ->
+  btlmostnd t (nd k d) ->
+  bstdel t k t' ->
+  minkey t' <> k.
+Proof.
+(* probably we need to use bst_bstdel_le_invariant at some point *)
+Admitted.
+
+
+(* Now we prove an important theorem:
+   Deletion doesn't violate the BST property *)
+
+Theorem bstdel_bst {X : Type} : forall t k t',
+  @bst X t ->
+  bstdel t k t' ->
+  bst t'.
+Proof with auto.
+  intros t k t' Hs Hd.
+  induction Hd; intros.
+  Case "bstdelnone". apply bstnil.
+  Case "bstdelleaf". apply bstnil.
+  Case "bstdelndl".
+    assert (bst (btsub ln ll lr)) by (inversion Hs; assumption).
+    destruct l' as [| [l'k l'd]]. inversion Hd; subst.
+    SCase "l' = btnil".
+      assert (pk < k) by (inversion Hs; auto).
+      destruct r. constructor. destruct n.
+      apply bsthir; inversion Hs; subst; auto. omega.
+    SCase "l' = btsub".
+      assert (maxkey (btsub ln ll lr) < k) by (inversion Hs; assumption).
+      assert (maxkey (btsub (nd l'k l'd) l'1 l'2) <> pk)
+        by (eapply bst_bstdel_max_ne; eauto).
+      apply bst_btrmostnd_maxkey in H...
+      apply bst_bstdel_le_invariant in Hd... destruct Hd as [Hmin Hmax].
+      destruct r. constructor... subst. omega.
+      destruct n as [rk rd].
+      assert (k < minkey (btsub (nd rk rd) r1 r2))
+        by (inversion Hs; assumption).
+      assert (bst (btsub (nd rk rd) r1 r2)) by (inversion Hs; assumption).
+      constructor; auto; try omega.
+  Case "bstdelndr".
+    assert (bst (btsub rn rl rr)) by (inversion Hs; assumption).
+    destruct r' as [| [r'k r'd]]. inversion Hd; subst.
+    SCase "r' = btnil".
+      assert (k < sk) by (inversion Hs; auto).
+      destruct l. constructor. destruct n.
+      apply bsthil; inversion Hs; subst; auto. omega.
+    SCase "r' = btsub".
+      assert (k < minkey (btsub rn rl rr)) by (inversion Hs; assumption).
+      assert (minkey (btsub (nd r'k r'd) r'1 r'2) <> sk)
+        by (eapply bst_bstdel_min_ne; eauto).
+      apply bst_btlmostnd_minkey in H...
+      apply bst_bstdel_le_invariant in Hd... destruct Hd as [Hmin Hmax].
+      destruct l. constructor... subst. omega.
+      destruct n as [lk ld].
+      assert (maxkey (btsub (nd lk ld) l1 l2) < k)
+        by (inversion Hs; assumption).
+      assert (bst (btsub (nd lk ld) l1 l2)) by (inversion Hs; assumption).
+      constructor; auto; try omega.
+  Case "bstdell".
+    destruct l'. destruct r; try constructor; inversion Hs; auto.
+    assert (bst (btsub ln ll lr)) by (inversion Hs; auto).
+    apply bst_bstdel_le_invariant in Hd... destruct Hd as [Hmin Hmax].
+    assert (maxkey (btsub n l'1 l'2) < k)
+      by (inversion Hs; subst; auto; omega).
+    destruct n. destruct r; inversion Hs; auto.
+  Case "bstdelr".
+    destruct r'. destruct l; try constructor; inversion Hs; auto.
+    assert (bst (btsub rn rl rr)) by (inversion Hs; auto).
+    apply bst_bstdel_le_invariant in Hd... destruct Hd as [Hmin Hmax].
+    assert (k < minkey (btsub n r'1 r'2))
+      by (inversion Hs; subst; auto; omega).
+    destruct n. destruct l; inversion Hs; auto.
+Qed.
+
 Theorem bstdel_correct {X : Type} : forall (t : @bt X) k' t' k,
   bst t ->
   bstdel t k' t' ->
   (bstsearch t k <-> bstsearch t' k \/ k = k') /\ bst t'.
 Proof.
+(* we need bstdel_bst *)
+  intros t k' t' k Hs Hd. split.
+  Case "->".
+    admit.
+  Case "<-".
+    admit.
 Admitted.
 
 (* It is easier to work with successors of [height] because the case when
@@ -1165,57 +1579,6 @@ Inductive btrebal {X : Type} : @bt X -> @bt X -> Prop :=
    the same rebalancing logic for both the case when I insert left and right
    2) to avoid repeating it when I implement AVL deletion *)
 
-Lemma bst_maxkey_nd {X : Type} : forall k d l,
-  @bst X (btsub (nd k d) l btnil) ->
-  maxkey (btsub (nd k d) l btnil) = k.
-Proof.
-  intros.
-  induction l as [| [lk ld]]. reflexivity.
-  inversion H; subst.
-  (* clear H3 lk0 ld0 ll lr. *)
-  (* STUCK *)
-Admitted.
-
-Lemma bst_minkey_nd {X : Type} : forall k d r,
-  @bst X (btsub (nd k d) btnil r) ->
-  minkey (btsub (nd k d) btnil r) = k.
-Proof.
-  intros.
-  generalize @minkey_nd; intros.
- inversion H; subst. auto.
- set (btsub (nd rk rd) rl rr) as r in *.
- set (btsub (nd k d) btnil r) as t in *.
- assert (minkey r <= rk) by eauto.
- assert (minkey t <= k) by eauto.
- assert (k < rk) by omega.
- assert (minkey t < minkey r) by omega.
- (* STUCK *)
-Admitted.
-
-Lemma bst_maxkey_r {X : Type} : forall k d l r,
-  @bst X (btsub (nd k d) l r) ->
-  r <> @btnil X ->
-  maxkey (btsub (nd k d) l r) = maxkey r.
-Proof.
-  intros.
-  generalize dependent l.
-  induction r. intuition.
-  intros.
-  destruct n as [rk rd].
-  destruct l.
-    destruct r1;
-      destruct r2;
-        auto.
-  (* STUCK *)
-Admitted.
-
-Lemma bst_minkey_l {X : Type} : forall k d l r,
-  @bst X (btsub (nd k d) l r) ->
-  l <> btnil ->
-  minkey (btsub (nd k d) l r) = minkey l.
-Proof.
-Admitted.
-
 Lemma btrotr_bst {X : Type} : forall t t',
   @bst X t ->
   btrotr t t' ->
@@ -1255,14 +1618,13 @@ Proof with auto.
   set (btsub (nd rk rd) rl rr) as r.
     assert (bst r) as Hsr by (inversion Hsp; assumption).
     assert (maxkey r < gk) as Hkr
-      by (subst p; rewrite bst_maxkey_r in Hkp; auto; intro H'; inversion H').
+      by (subst p; rewrite bst_maxkey_r in Hkp; assumption).
     assert (bst g') as Hsg'.
       destruct u as [| [uk ud] ul ur]. apply bsthil...
       apply bstbal; auto. apply Hku. intro H'. inversion H'.
     assert (pk < minkey g').
       assert (pk < minkey r) as Hkr' by (inversion Hsp; assumption).
-      subst g'. rewrite bst_minkey_l...
-      intro H'; inversion H'.
+      subst g'. rewrite bst_minkey_l; assumption.
     destruct l as [| [lk ld] ll lr].
     SCase "l = btnil".
       eapply bsthir...
@@ -1277,7 +1639,7 @@ Lemma btrotl_bst {X : Type} : forall t t',
   btrotl t t' ->
   bst t'.
 Proof with auto.
-  (* Analogous to [btrotl_bst], but with more automation. *)
+  (* Analogous to right rotation, but with more automation. *)
   intros g p' Hs Hr.
   destruct p';
     inversion Hr; subst; clear Hr.
@@ -1306,14 +1668,13 @@ Proof with auto.
     set (btsub (nd lk ld) ll lr) as l.
     assert (bst l) as Hsl by (inversion Hsp; assumption).
     assert (gk < minkey l) as Hkl
-      by (subst p; rewrite bst_minkey_l in Hkp; auto; intro H'; inversion H').
+      by (subst p; rewrite bst_minkey_l in Hkp; assumption).
     assert (bst g') as Hsg'.
       destruct u as [| [uk ud] ul ur]; constructor...
       apply Hku; intro H'; inversion H'.
     assert (maxkey g' < pk).
       inversion Hsp;
-        subst g'; rewrite bst_maxkey_r;
-          try (intro H'; inversion H')...
+        subst g'; rewrite bst_maxkey_r; assumption.
     destruct r as [| [rk rd] rl rr]. apply bsthil...
     inversion Hsp; apply bstbal...
 Qed.
@@ -1539,6 +1900,7 @@ Theorem avlins_avlt {X : Type} : forall t n t'',
   @avlins X t n t'' ->
   @avlt X t''.
 Proof.
+(* at some point we will use avlins_bst *)
   assert (forall X t, @avlt X t -> bst t) as Has.
     intros. inversion H; auto.
 
