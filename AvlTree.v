@@ -1603,7 +1603,7 @@ Proof with auto.
   Case "r = btnil".
     assert (bst g') as Hsg'.
       destruct u as [| [uk ud] ul ur]. apply bstleaf.
-      apply bsthir; auto. apply Hku. intro H. inversion H.
+      apply bsthir; auto.
     assert (pk < minkey g')
       by (subst p g'; rewrite bst_maxkey_nd in Hkp; try rewrite bst_minkey_nd;
         assumption).
@@ -1621,7 +1621,7 @@ Proof with auto.
       by (subst p; rewrite bst_maxkey_r in Hkp; assumption).
     assert (bst g') as Hsg'.
       destruct u as [| [uk ud] ul ur]. apply bsthil...
-      apply bstbal; auto. apply Hku. intro H'. inversion H'.
+      apply bstbal; auto.
     assert (pk < minkey g').
       assert (pk < minkey r) as Hkr' by (inversion Hsp; assumption).
       subst g'. rewrite bst_minkey_l; assumption.
@@ -1658,7 +1658,6 @@ Proof with auto.
   Case "l = btnil".
     assert (bst g') as Hsg'.
       destruct u as [| [uk ud] ul ur]; constructor...
-      apply Hku; intro H'; inversion H'.
     assert (maxkey g' < pk)
       by (subst p g'; rewrite bst_minkey_nd in Hkp; try rewrite bst_maxkey_nd;
         assumption).
@@ -1671,7 +1670,6 @@ Proof with auto.
       by (subst p; rewrite bst_minkey_l in Hkp; assumption).
     assert (bst g') as Hsg'.
       destruct u as [| [uk ud] ul ur]; constructor...
-      apply Hku; intro H'; inversion H'.
     assert (maxkey g' < pk).
       inversion Hsp;
         subst g'; rewrite bst_maxkey_r; assumption.
